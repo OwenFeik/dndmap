@@ -14,9 +14,15 @@ class CursorManager():
                 (0, 0),
                 *pygame.cursors.compile(pygame.cursors.sizer_y_strings)
             ),
-            'resize_xy' : (
+            'resize_tr_bl': (
                 *size_and_pos,
                 *pygame.cursors.compile(pygame.cursors.sizer_xy_strings)
+            ),
+            'resize_tl_br': (
+                *size_and_pos,
+                *pygame.cursors.compile(
+                    [s[::-1] for s in pygame.cursors.sizer_xy_strings]
+                )
             )
         }
 

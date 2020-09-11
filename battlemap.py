@@ -4,7 +4,7 @@ import pygame
 
 import gui_util
 
-MARGIN = 5
+MARGIN = 10
 
 class DragPoints(enum.Enum):
     NONE = 0
@@ -23,10 +23,10 @@ dragpoint_cursor_mapping = {
     DragPoints.RIGHT: 'resize_x',
     DragPoints.TOP: 'resize_y',
     DragPoints.BOT: 'resize_y',
-    DragPoints.TOPLEFT: 'resize_xy',
-    DragPoints.TOPRIGHT: 'resize_xy',
-    DragPoints.BOTLEFT: 'resize_xy',
-    DragPoints.BOTRIGHT: 'resize_xy'
+    DragPoints.TOPLEFT: 'resize_tr_bl',
+    DragPoints.TOPRIGHT: 'resize_tl_br',
+    DragPoints.BOTLEFT: 'resize_tl_br',
+    DragPoints.BOTRIGHT: 'resize_tr_bl'
 }
 
 class BattleMap():
@@ -57,7 +57,7 @@ class BattleMap():
 
         for i in self.images:
             touch_point = i.touching(x, y)
-            if touch_point:
+            if touch_point != DragPoints.NONE:
                 cursor = dragpoint_cursor_mapping[touch_point]
                 break
         else:
