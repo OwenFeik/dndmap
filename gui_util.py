@@ -7,9 +7,10 @@ class Colours():
     WHITE = pygame.Color(255, 255, 255, 255)
 
 def init_cursors():
-    size_and_pos = ((24, 16), (0, 0))
+    size_and_pos = ((24, 16), (12, 8))
     cursors.update({
         'normal': pygame.cursors.arrow,
+        'cross': pygame.cursors.broken_x,
         'resize_x': (
             *size_and_pos,
             *pygame.cursors.compile(pygame.cursors.sizer_x_strings)
@@ -41,4 +42,4 @@ def get_shift_down():
     return get_key_down(pygame.K_LSHIFT) or get_key_down(pygame.K_RSHIFT)
 
 def get_ctrl_down():
-    return get_key_down(pygame.K_RCTRL) or get_key_down(pygame.K_RCTRL)
+    return get_key_down(pygame.K_LCTRL) or get_key_down(pygame.K_RCTRL)

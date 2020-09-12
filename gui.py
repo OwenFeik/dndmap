@@ -18,7 +18,7 @@ MOUSE_EVENTS = [
 def main():
     gui_util.init_cursors()
     bm = battlemap.BattleMap()
-    bm.images.append(battlemap.MapImage(pygame.image.load('map.jpg')))
+    bm.images.append(battlemap.MapImage(pygame.image.load('map.jpg'), z=1))
     bm.images.append(battlemap.MapImage.from_file('map2.jpg', width=400, height=400, x=100, y=500))
 
     pygame.init()
@@ -31,7 +31,7 @@ def main():
 
     running = True
     while running:
-        screen.blit(bm.render(), (0, 0))
+        screen.blit(bm.image, (0, 0))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
