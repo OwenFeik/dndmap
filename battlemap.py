@@ -5,7 +5,7 @@ import pygame
 import gui_util
 
 MARGIN = 10
-SCROLL_SPEED = 10
+SCROLL_SPEED = 20
 
 class DragPoints(enum.Enum):
     NONE = 0
@@ -37,11 +37,45 @@ class BattleMap():
         self.vp_w, self.vp_h = kwargs.get('vp_size', (1280, 720))
         self.vp_x, self.vp_y = kwargs.get('vp_pos', (0, 0))
         self.width, self.height = kwargs.get('map_size', (128, 128))
-        self.tile_size = kwargs.get('tile_size', 64)
+        self.tile_size = kwargs.get('tile_size', 32)
         self.zoom_level = kwargs.get('zoom_level', 1)
+
+        self.grid_image = None
+        self.grid_line_width = 2
+        self.render_grid()
 
         self.holding = None
         self.holding_drag_point = None
+
+    def render_grid(self):
+        bottom = self.vp_h + self.tile_size
+        right = self.vp_w + self.tile_size
+        
+        grid = pygame.Surface((right, bottom))
+        grid.set_colorkey(gui_util.Colours.WHITE)
+        grid.fill(gui_util.Colours.WHITE)
+        
+        for i in range(0, self.vp_h // self.tile_size + 2):
+            y = i * self.tile_size
+            pygame.draw.line(
+                grid,
+                gui_util.Colours.BLACK,
+                (0, y),
+                (right, y),
+                self.grid_line_width
+            )
+        
+        for i in range(0, self.vp_w // self.tile_size + 2):
+            x = i * self.tile_size 
+            pygame.draw.line(
+                grid,
+                gui_util.Colours.BLACK,
+                (x, 0),
+                (x, bottom),
+                self.grid_line_width
+            )
+
+        self.grid_image = grid
 
     def render(self):
         vp = pygame.Surface((self.vp_w, self.vp_h))
@@ -51,7 +85,10 @@ class BattleMap():
             if 0 < x + i.w and x < self.vp_w and 0 < y + i.h and y < self.vp_h:
                 vp.blit(i.image, (x, y))
 
-        pygame.draw.circle(vp, (255, 0, 0), (0, 0), 10)
+        vp.blit(
+            self.grid_image,
+            (-(self.vp_x % self.tile_size), -(self.vp_y % self.tile_size))
+        )
 
         return vp
 
@@ -64,7 +101,7 @@ class BattleMap():
 
     def get_map_coords(self, event_pos):
         x, y = event_pos
-        return x - self.vp_x, y - self.vp_y
+        return x + self.vp_x, y + self.vp_y
 
     def handle_mouse_motion(self, event):
         x, y = self.get_map_coords(event.pos)
@@ -73,6 +110,16 @@ class BattleMap():
             gui_util.set_cursor(dragpoint_cursor_mapping[point])
         else:
             self.holding.handle_resize(self.holding_drag_point, x, y)
+
+    def handle_mouse_scroll(self, event):
+        x = gui_util.get_shift_down()
+        direction = -1 if (event.button == 4) else 1
+        if x:
+            self.vp_x += SCROLL_SPEED * direction
+            self.vp_x = max(min(self.vp_x, self.width * self.tile_size), 0)
+        else:
+            self.vp_y += SCROLL_SPEED * direction
+            self.vp_y = max(min(self.vp_y, self.width * self.tile_size), 0)
 
     def handle_mouse_down(self, event):
         if event.button == 1:
@@ -84,16 +131,8 @@ class BattleMap():
             pass # Middle mouse
         elif event.button == 3:
             pass # Right click
-        elif event.button == 4: # Mwheel up
-            if gui_util.get_shift_down():
-                self.vp_x -= SCROLL_SPEED
-            else:
-                self.vp_y -= SCROLL_SPEED
-        elif event.button == 5: # Mwheel down
-            if gui_util.get_shift_down():
-                self.vp_x += SCROLL_SPEED
-            else:
-                self.vp_y += SCROLL_SPEED
+        elif event.button in [4, 5]: # Mwheel
+            self.handle_mouse_scroll(event)
 
     def handle_mouse_up(self, event):
         if event.button == 1:
@@ -112,82 +151,79 @@ class MapImage():
         self.base_image = surface
 
         w, h = surface.get_size()
-        self.w = kwargs.get('width', w)
-        self.h = kwargs.get('height', h)
+        self.w = kwargs.get('width', kwargs.get('w', w))
+        self.h = kwargs.get('height', kwargs.get('h', h))
         self.x = kwargs.get('x', 0)
         self.y = kwargs.get('y', 0)
 
         self.image = None
         self.apply_transform()
 
-    @property
-    def width(self):
-        return self.w
-
-    @property
-    def height(self):
-        return self.h
-
     def apply_transform(self):
         self.image = pygame.transform.scale(
             self.base_image,
-            (self.width, self.height)
+            (self.w, self.h)
         )
 
     def handle_resize(self, drag_point, x, y):
-        if drag_point == DragPoints.TOP:
+        if drag_point in [
+            DragPoints.TOP,
+            DragPoints.TOPLEFT,
+            DragPoints.TOPRIGHT
+        ]:
             self.h += self.y - y
             self.y = y
-        elif drag_point == DragPoints.BOT:
+        elif drag_point in [
+            DragPoints.BOT,
+            DragPoints.BOTLEFT,
+            DragPoints.BOTRIGHT
+        ]:
             self.h = y - self.y
+        
+        if drag_point in [
+            DragPoints.LEFT,
+            DragPoints.TOPLEFT,
+            DragPoints.BOTLEFT
+        ]:
+            self.w += self.x - x
+            self.x = x
+        elif drag_point in [
+            DragPoints.RIGHT,
+            DragPoints.TOPRIGHT,
+            DragPoints.BOTRIGHT
+        ]:
+            self.w = x - self.x
 
         self.apply_transform()
         
     def touching(self, x, y):
-        touching_left = abs(x - self.x) < MARGIN
-        touching_top = abs(y - self.y) < MARGIN
-        touching_right = abs(x - (self.x + self.w)) < MARGIN
-        touching_bot = abs(y - (self.y + self.h)) < MARGIN
+        in_range_y = -MARGIN < y - self.y < self.h + MARGIN
+        in_range_x = -MARGIN < x - self.x < self.w + MARGIN
+
+        touching_left = abs(x - self.x) < MARGIN and in_range_y
+        touching_top = abs(y - self.y) < MARGIN and in_range_x
+        touching_right = abs(x - (self.x + self.w)) < MARGIN and in_range_y
+        touching_bot = abs(y - (self.y + self.h)) < MARGIN and in_range_x
 
         if touching_left and touching_top:
             return DragPoints.TOPLEFT
-        elif touching_left and touching_bot:
+        if touching_left and touching_bot:
             return DragPoints.BOTLEFT
-        elif touching_left:
+        if touching_left:
             return DragPoints.LEFT
-        elif touching_right and touching_top:
+        if touching_right and touching_top:
             return DragPoints.TOPRIGHT
-        elif touching_right and touching_bot:
+        if touching_right and touching_bot:
             return DragPoints.BOTRIGHT
-        elif touching_right:
+        if touching_right:
             return DragPoints.RIGHT
-        elif touching_top:
+        if touching_top:
             return DragPoints.TOP
-        elif touching_bot:
+        if touching_bot:
             return DragPoints.BOT
-        else:
-            return DragPoints.NONE
+
+        return DragPoints.NONE
 
     @staticmethod
     def from_file(path, **kwargs):
         return MapImage(pygame.image.load(path), **kwargs)
-
-# pygame.init()
-# pygame.display.set_caption('dndmap')
-
-# screen = pygame.display.set_mode((1280, 720))
-# map_image = pygame.image.load('map.jpg')
-
-# m = pygame.transform.scale(map_image, (480, 600))
-# screen.blit(m, (0, 0))
-
-
-# def draw_handle(x, y):
-#     screen.fill((0, 0, 0))
-#     pygame.draw.circle(screen, (255, 0, 0), (x, y), 10)
-
-# handle_pos = m.get_size()
-# holding = False
-
-
-

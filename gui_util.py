@@ -1,8 +1,10 @@
-import enum
-
 import pygame
 
 cursors = {}
+
+class Colours():
+    BLACK = pygame.Color(0, 0, 0, 0)
+    WHITE = pygame.Color(255, 255, 255, 255)
 
 def init_cursors():
     size_and_pos = ((24, 16), (0, 0))
