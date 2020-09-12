@@ -1,6 +1,7 @@
 import pygame
 
 import battlemap
+import gui_util
 
 WINDOW_SIZE = (1280, 720)
 MAP_SIZE = (1280, 720)
@@ -8,10 +9,17 @@ MAP_SIZE = (1280, 720)
 def is_on_map(x, y):
     return True
 
+MOUSE_EVENTS = [
+    pygame.MOUSEBUTTONDOWN,
+    pygame.MOUSEBUTTONUP,
+    pygame.MOUSEMOTION
+]
+
 def main():
+    gui_util.init_cursors()
     bm = battlemap.BattleMap()
-    bm.images.append(battlemap.MapImage(pygame.image.load('map.bmp')))
-    bm.images.append(battlemap.MapImage.from_file('map.png', width=400, height=400, x=100, y=500))
+    bm.images.append(battlemap.MapImage(pygame.image.load('map.jpg')))
+    bm.images.append(battlemap.MapImage.from_file('map2.jpg', width=400, height=400, x=100, y=500))
 
     pygame.init()
     pygame.display.set_caption('dndmap')
@@ -34,11 +42,13 @@ def main():
         #             holding = True
         #     elif event.type == pygame.MOUSEBUTTONUP:
         #         holding = False
-            elif event.type == pygame.MOUSEMOTION:
+            elif event.type in MOUSE_EVENTS:
                 if is_on_map(*event.pos):
-                    bm.handle_motion(event)
-
+                    bm.handle_mouse_event(event)
+            # elif event.type == pygame.KEYDOWN:
+            #     print(event.key)
         pygame.display.update()
+
 
 
 if __name__ == '__main__':
