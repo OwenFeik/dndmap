@@ -1,6 +1,6 @@
 import enum
 
-import pygame
+import PIL.Image, PIL.ImageDraw, PIL.ImageTk
 
 import gui_util
 
@@ -19,16 +19,16 @@ class DragPoints(enum.Enum):
     BOTRIGHT = enum.auto()
 
 dragpoint_cursor_mapping = {
-    DragPoints.NONE: 'normal',
-    DragPoints.BODY: 'cross',
-    DragPoints.LEFT: 'resize_x',
-    DragPoints.RIGHT: 'resize_x',
-    DragPoints.TOP: 'resize_y',
-    DragPoints.BOT: 'resize_y',
-    DragPoints.TOPLEFT: 'resize_tr_bl',
-    DragPoints.TOPRIGHT: 'resize_tl_br',
-    DragPoints.BOTLEFT: 'resize_tl_br',
-    DragPoints.BOTRIGHT: 'resize_tr_bl'
+    DragPoints.NONE: '',
+    DragPoints.BODY: 'fleur',
+    DragPoints.LEFT: 'sb_h_double_arrow',
+    DragPoints.RIGHT: 'sb_h_double_arrow',
+    DragPoints.TOP: 'sb_v_double_arrow',
+    DragPoints.BOT: 'sb_v_double_arrow',
+    DragPoints.TOPLEFT: 'sizing',
+    DragPoints.TOPRIGHT: 'sizing',
+    DragPoints.BOTLEFT: 'sizing',
+    DragPoints.BOTRIGHT: 'sizing'
 }
 
 class BattleMap():
@@ -37,7 +37,9 @@ class BattleMap():
     ZOOM_MAX = 2
     ZOOM_MIN = 0.1
 
-    def __init__(self, **kwargs):
+    def __init__(self, master, **kwargs):
+        self.master = master
+
         self.images = [] # List[MapImage]
 
         self.vp_base_w, self.vp_base_h = kwargs.get('vp_size', (1280, 720))
@@ -45,13 +47,12 @@ class BattleMap():
         self.width, self.height = kwargs.get('map_size', (128, 128))
         self.tile_size = kwargs.get('tile_size', 32)
         self.zoom_level = kwargs.get('zoom_level', 1.25)
+        self.bg_colour = kwargs.get('bg_colour', (0, 0, 0, 0))
 
+        self.image = None
         self.grid_image = None
         self.grid_line_width = 2
         self.render_grid()
-
-        self.redraw = True
-        self._image = None
 
         self.holding = None
         self.holding_drag_point = None
@@ -64,59 +65,56 @@ class BattleMap():
     def vp_h(self):
         return int(self.zoom_level * self.vp_base_h)
 
-    @property
-    def image(self):
-        if self.redraw:
-            self.render()
-            self.redraw = False
-        return self._image
+    def get_photo_image(self):
+        return PIL.ImageTk.PhotoImage(self.image)
+
+    def redraw(self):
+        print('redrew')
+        self.render()
+        self.master.set_image(self.get_photo_image())
 
     def render_grid(self):
         bottom = self.vp_h + self.tile_size
         right = self.vp_w + self.tile_size
         
-        grid = pygame.Surface((right, bottom))
-        grid.set_colorkey(gui_util.Colours.BLACK)
-        grid.fill(gui_util.Colours.BLACK)
-        
+        grid = PIL.Image.new('RGBA', (right, bottom), gui_util.Colours.CLEAR)
+        draw = PIL.ImageDraw.Draw(grid)
+
         for i in range(0, self.vp_h // self.tile_size + 2):
             y = i * self.tile_size
-            pygame.draw.line(
-                grid,
-                gui_util.Colours.WHITE,
-                (0, y),
-                (right, y),
+            draw.line(
+                [(0, y), (right, y)],
+                gui_util.Colours.BLACK,
                 self.grid_line_width
             )
         
         for i in range(0, self.vp_w // self.tile_size + 2):
             x = i * self.tile_size 
-            pygame.draw.line(
-                grid,
-                gui_util.Colours.WHITE,
-                (x, 0),
-                (x, bottom),
+            draw.line(
+                [(x, 0), (x, bottom)],
+                gui_util.Colours.BLACK,
                 self.grid_line_width
             )
 
         self.grid_image = grid
 
     def render(self):
-        vp = pygame.Surface((self.vp_w, self.vp_h))
-        
+        self.image = PIL.Image.new('RGBA', (self.vp_w, self.vp_h), self.bg_colour)
+        vp = self.image
+
         for i in sorted(self.images, key=lambda i: i.z):
             x, y = i.x - self.vp_x, i.y - self.vp_y
             if 0 < x + i.w and x < self.vp_w and 0 < y + i.h and y < self.vp_h:
-                vp.blit(i.image, (x, y))
+                vp.paste(i.image, (x, y))
 
-        vp.blit(
+        vp.paste(
             self.grid_image,
-            (-(self.vp_x % self.tile_size), -(self.vp_y % self.tile_size))
+            (-(self.vp_x % self.tile_size), -(self.vp_y % self.tile_size)),
+            self.grid_image
         )
 
-        vp = pygame.transform.scale(vp, (self.vp_base_w, self.vp_base_h))
+        vp = vp.resize((self.vp_base_w, self.vp_base_h))
 
-        self._image = vp
 
     def get_hover_state(self, x, y):
         for i in sorted(self.images, key=lambda i: -i.z):
@@ -125,13 +123,12 @@ class BattleMap():
                 return drag_point, i
         return DragPoints.NONE, None
 
-    def get_map_coords(self, event_pos):
-        x, y = event_pos
-        return int(x * self.zoom_level) + self.vp_x, \
-            int(y * self.zoom_level) + self.vp_y
+    def get_map_coords(self, e_x, e_y):
+        return int(e_x * self.zoom_level) + self.vp_x, \
+            int(e_y * self.zoom_level) + self.vp_y
 
     def handle_mouse_motion(self, event):
-        x, y = self.get_map_coords(event.pos)
+        x, y = self.get_map_coords(event.x, event.y)
         if self.holding == None:
             point, _ = self.get_hover_state(x, y)
             if point in dragpoint_cursor_mapping:
@@ -140,12 +137,12 @@ class BattleMap():
                 gui_util.set_cursor(dragpoint_cursor_mapping[DragPoints.BODY])
         else:
             self.holding.handle_resize(self.holding_drag_point, x, y)
-            self.redraw = True
+            self.redraw()
 
     def handle_mouse_scroll(self, event):
         zoom = gui_util.get_ctrl_down()
         x = gui_util.get_shift_down()
-        direction = -1 if (event.button == 4) else 1
+        direction = -1 if (event.num == 4) else 1
         if zoom:
             self.zoom_level += BattleMap.ZOOM_SPEED * direction
             self.zoom_level = max(
@@ -153,47 +150,40 @@ class BattleMap():
                 BattleMap.ZOOM_MIN
             )
             self.render_grid()
-            print(self.zoom_level)
         elif x:
             self.vp_x += BattleMap.SCROLL_SPEED * direction
             self.vp_x = max(min(self.vp_x, self.width * self.tile_size), 0)
         else:
             self.vp_y += BattleMap.SCROLL_SPEED * direction
             self.vp_y = max(min(self.vp_y, self.width * self.tile_size), 0)
-        self.redraw = True
+        self.redraw()
 
     def handle_mouse_down(self, event):
-        if event.button == 1:
+        print(event.num)
+        if event.num == 1:
             drag_point, image = self.get_hover_state(
-                *self.get_map_coords(event.pos)
+                *self.get_map_coords(event.x, event.y)
             )
             if drag_point != DragPoints.NONE:
                 self.holding = image
                 self.holding_drag_point = drag_point
-        elif event.button == 2:
+        elif event.num == 2:
             pass # Middle mouse
-        elif event.button == 3:
+        elif event.num == 3:
             pass # Right click
-        elif event.button in [4, 5]: # Mwheel
+        elif event.num in [4, 5]: # Mwheel
             self.handle_mouse_scroll(event)
 
     def handle_mouse_up(self, event):
-        if event.button == 1:
+        if event.num == 1:
             self.holding = None
             self.holding_drag_point = None
 
-    def handle_mouse_event(self, event):
-        {
-            pygame.MOUSEBUTTONDOWN: self.handle_mouse_down,
-            pygame.MOUSEBUTTONUP: self.handle_mouse_up,
-            pygame.MOUSEMOTION: self.handle_mouse_motion
-        }[event.type](event)
-
 class MapImage():
-    def __init__(self, surface, **kwargs):
-        self.base_image = surface
+    def __init__(self, image, **kwargs):
+        self.base_image = image
 
-        w, h = surface.get_size()
+        w, h = image.size
         self.w = kwargs.get('width', kwargs.get('w', w))
         self.h = kwargs.get('height', kwargs.get('h', h))
         self.x = kwargs.get('x', 0)
@@ -204,10 +194,7 @@ class MapImage():
         self.apply_transform()
 
     def apply_transform(self):
-        self.image = pygame.transform.scale(
-            self.base_image,
-            (self.w, self.h)
-        )
+        self.image = self.base_image.resize((self.w, self.h))
 
     def handle_resize(self, drag_point, x, y):
         if drag_point in [
@@ -277,4 +264,4 @@ class MapImage():
 
     @staticmethod
     def from_file(path, **kwargs):
-        return MapImage(pygame.image.load(path), **kwargs)
+        return MapImage(PIL.Image.open(path), **kwargs)

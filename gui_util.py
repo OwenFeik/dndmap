@@ -1,45 +1,52 @@
-import pygame
-
-cursors = {}
+class ModKeys():
+    SHIFT_L = 65505
+    SHIFT_R = 65506
+    CONTROL_L = 65508
+    CONTROL_R = 65507
+    ALT_L = 65513
+    ALT_R = 65514    
 
 class Colours():
-    BLACK = pygame.Color(0, 0, 0, 0)
-    WHITE = pygame.Color(255, 255, 255, 255)
+    BLACK = (0, 0, 0, 255)
+    CLEAR = (0, 0, 0, 0)
+    WHITE = (255, 255, 255, 255)
 
-def init_cursors():
-    size_and_pos = ((24, 16), (12, 8))
-    cursors.update({
-        'normal': pygame.cursors.arrow,
-        'cross': pygame.cursors.broken_x,
-        'resize_x': (
-            *size_and_pos,
-            *pygame.cursors.compile(pygame.cursors.sizer_x_strings)
-        ),
-        'resize_y': (
-            (16, 24),
-            (0, 0),
-            *pygame.cursors.compile(pygame.cursors.sizer_y_strings)
-        ),
-        'resize_tr_bl': (
-            *size_and_pos,
-            *pygame.cursors.compile(pygame.cursors.sizer_xy_strings)
-        ),
-        'resize_tl_br': (
-            *size_and_pos,
-            *pygame.cursors.compile(
-                [s[::-1] for s in pygame.cursors.sizer_xy_strings]
-            )
-        )
-    })
+class KeyHandler():
+    def __init__(self):
+        self.keystates = {}
 
-def set_cursor(name):
-    pygame.mouse.set_cursor(*cursors[name])
+    def handle_key_down(self, e):
+        self.keystates[e.keysym_num] = True
 
-def get_key_down(key_ord):
-    return bool(pygame.key.get_pressed()[key_ord])
+    def handle_key_up(self, e):
+        self.keystates[e.keysym_num] = False 
+
+    def get_key_down(self, ksn):
+        return self.keystates.get(ksn, False)
+
+key_handler = KeyHandler()
+
+handle_key_down = key_handler.handle_key_down
+handle_key_up = key_handler.handle_key_up
+get_key_down = key_handler.get_key_down
 
 def get_shift_down():
-    return get_key_down(pygame.K_LSHIFT) or get_key_down(pygame.K_RSHIFT)
+    return get_key_down(ModKeys.SHIFT_L) or get_key_down(ModKeys.SHIFT_R)
 
 def get_ctrl_down():
-    return get_key_down(pygame.K_LCTRL) or get_key_down(pygame.K_RCTRL)
+    return get_key_down(ModKeys.CONTROL_L) or get_key_down(ModKeys.CONTROL_R)
+
+class CursorManager():
+    def __init__(self):
+        self.root = None
+
+    def init_cursor_manager(self, root):
+        self.root = root
+
+    def set_cursor(self, name):
+        self.root.config(cursor=name)
+
+cursor_manager = CursorManager()
+
+init_cursor_manager = cursor_manager.init_cursor_manager
+set_cursor = cursor_manager.set_cursor
