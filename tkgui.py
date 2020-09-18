@@ -29,7 +29,6 @@ class BattleMapLabel(tk.Frame):
 
         self.prev_frame = time.time_ns()
         self.frame_time = 1e9 / self.FRAME_RATE_TARGET
-        print(self.frame_time)
         self.render_thread = None
         self.rendering = True
         self.start_render_thread()
@@ -87,9 +86,10 @@ class Application(tk.Frame):
             command=self.master.destroy)
         self.quit.pack(side='bottom')
 
-
 gui_util.init_cursor_manager(root)
 root.bind('<Key>', gui_util.handle_key_down)
 root.bind('<KeyRelease>', gui_util.handle_key_up)
+root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
 app = Application(root)
+
 app.mainloop()

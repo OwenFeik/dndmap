@@ -10,6 +10,14 @@ class Colours():
     BLACK = (0, 0, 0, 255)
     CLEAR = (0, 0, 0, 0)
     WHITE = (255, 255, 255, 255)
+    GREY = (128, 128, 128, 255)
+    LIGHT_GREY = (200, 200, 200, 255)
+
+BG_COLOUR = Colours.LIGHT_GREY
+
+def get_hex_colour(rgba):
+    *rgb, _a = rgba
+    return '#' + ''.join([hex(i)[2:] for i in rgb])
 
 class KeyHandler():
     def __init__(self):
