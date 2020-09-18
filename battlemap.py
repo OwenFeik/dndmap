@@ -1,4 +1,5 @@
 import enum
+import time
 
 import PIL.Image, PIL.ImageDraw, PIL.ImageTk
 
@@ -53,6 +54,7 @@ class BattleMap():
         self.grid_image = None
         self.grid_line_width = 2
         self.render_grid()
+        self.redraw = True
 
         self.holding = None
         self.holding_drag_point = None
@@ -67,11 +69,6 @@ class BattleMap():
 
     def get_photo_image(self):
         return PIL.ImageTk.PhotoImage(self.image)
-
-    def redraw(self):
-        print('redrew')
-        self.render()
-        self.master.set_image(self.get_photo_image())
 
     def render_grid(self):
         bottom = self.vp_h + self.tile_size
@@ -99,8 +96,9 @@ class BattleMap():
         self.grid_image = grid
 
     def render(self):
-        self.image = PIL.Image.new('RGBA', (self.vp_w, self.vp_h), self.bg_colour)
-        vp = self.image
+        print('rendered!')
+        start = time.time_ns()
+        vp = PIL.Image.new('RGBA', (self.vp_w, self.vp_h), self.bg_colour)
 
         for i in sorted(self.images, key=lambda i: i.z):
             x, y = i.x - self.vp_x, i.y - self.vp_y
@@ -113,7 +111,10 @@ class BattleMap():
             self.grid_image
         )
 
-        vp = vp.resize((self.vp_base_w, self.vp_base_h))
+        self.image = vp.resize((self.vp_base_w, self.vp_base_h))
+        self.redraw = False
+
+        print(f'Took {(time.time_ns() - start) / 1e9}s to render.')
 
 
     def get_hover_state(self, x, y):
@@ -137,7 +138,7 @@ class BattleMap():
                 gui_util.set_cursor(dragpoint_cursor_mapping[DragPoints.BODY])
         else:
             self.holding.handle_resize(self.holding_drag_point, x, y)
-            self.redraw()
+            self.redraw = True
 
     def handle_mouse_scroll(self, event):
         zoom = gui_util.get_ctrl_down()
@@ -156,7 +157,7 @@ class BattleMap():
         else:
             self.vp_y += BattleMap.SCROLL_SPEED * direction
             self.vp_y = max(min(self.vp_y, self.width * self.tile_size), 0)
-        self.redraw()
+        self.redraw = True
 
     def handle_mouse_down(self, event):
         print(event.num)
