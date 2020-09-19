@@ -15,8 +15,8 @@ class BattleMapLabel(tk.Frame):
     def __init__(self, master=None, **kwargs):
         super().__init__(master)
         self.bm = battlemap.BattleMap(master=self, **kwargs)
-        self.bm.images.append(battlemap.MapImage.from_file('map.jpg', z=1))
-        self.bm.images.append(battlemap.MapImage.from_file('map2.jpg', width=400, height=400, x=100, y=500))
+        self.bm.images.append(battlemap.MapImage.from_file('map.bmp', z=1))
+        self.bm.images.append(battlemap.MapImage.from_file('village.jpg', width=400, height=400, x=100, y=500))
         self.bm.render()
 
         self.old_image = None
@@ -24,8 +24,10 @@ class BattleMapLabel(tk.Frame):
         self.label = tk.Label(self, image=self.image)
         self.label.pack()
 
-        self.label.bind('<Button>', self.handle_mouse_down)
-        self.label.bind('<ButtonRelease>', self.handle_mouse_up)
+        self.label.bind('<Button>', self.bm.handle_mouse_down)
+        self.label.bind('<ButtonRelease>', self.bm.handle_mouse_up)
+        self.label.bind('<MouseWheel>', self.bm.handle_mouse_scroll)
+        self.label.bind('<Motion>', self.bm.handle_mouse_motion)
 
         self.prev_frame = time.time_ns()
         self.frame_time = 1e9 / self.FRAME_RATE_TARGET
@@ -57,12 +59,6 @@ class BattleMapLabel(tk.Frame):
 
     def end_render_thread(self, _):
         self.rendering = False
-        
-    def handle_mouse_down(self, e):
-        self.bm.handle_mouse_down(e)
-
-    def handle_mouse_up(self, e):
-        self.bm.handle_mouse_up(e)
 
 class Application(tk.Frame):
     def __init__(self, master=None):

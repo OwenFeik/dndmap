@@ -147,9 +147,9 @@ dragpoint_cursor_mapping = {
 }
 
 class BattleMap():
-    SCROLL_SPEED = 20
-    ZOOM_SPEED = 0.1
-    ZOOM_MAX = 2
+    SCROLL_SPEED_COEFF = 0.2 
+    ZOOM_SPEED_COEFF = 0.001
+    ZOOM_MAX = 1.5
     ZOOM_MIN = 0.1
 
     def __init__(self, master, **kwargs):
@@ -254,21 +254,25 @@ class BattleMap():
             self.redraw = True
 
     def handle_mouse_scroll(self, event):
+        if event.num != '??':
+            delta = -120 if event.num == 4 else 120
+        else:
+            delta = -event.delta
+
         zoom = gui_util.get_ctrl_down()
         x = gui_util.get_shift_down()
-        direction = -1 if (event.num == 4) else 1
         if zoom:
-            self.zoom_level += BattleMap.ZOOM_SPEED * direction
+            self.zoom_level += BattleMap.ZOOM_SPEED_COEFF * delta
             self.zoom_level = max(
                 min(self.zoom_level, BattleMap.ZOOM_MAX),
                 BattleMap.ZOOM_MIN
             )
             self.render_grid()
         elif x:
-            self.vp_x += BattleMap.SCROLL_SPEED * direction
+            self.vp_x += int(BattleMap.SCROLL_SPEED_COEFF * delta)
             self.vp_x = max(min(self.vp_x, self.width * self.tile_size), 0)
         else:
-            self.vp_y += BattleMap.SCROLL_SPEED * direction
+            self.vp_y += int(BattleMap.SCROLL_SPEED_COEFF * delta)
             self.vp_y = max(min(self.vp_y, self.width * self.tile_size), 0)
         self.redraw = True
 

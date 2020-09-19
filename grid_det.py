@@ -1,11 +1,8 @@
 import cv2
 import numpy as np
 
-i = cv2.imread('map.jpg')
+i = cv2.imread('asdf.bmp')
 i = cv2.cvtColor(i, cv2.COLOR_BGR2GRAY)
-
-rows = [np.std(row) for row in i]
-cols = [np.std(i[:,j]) for j in range(len(i))]
 
 def calc_avg_delta(rows):
     prev = []
@@ -29,5 +26,18 @@ def calc_avg_delta(rows):
 
     return max(deltas, key=lambda k: deltas[k])
 
-print(calc_avg_delta(rows))
-print(calc_avg_delta(cols))
+def calc_grid_size(i):
+    rows = [np.std(row) for row in i]
+    cols = [np.std(i[:,j]) for j in range(len(i[0]))]
+
+    sx = calc_avg_delta(rows)
+    sy = calc_avg_delta(cols)
+
+    # if sx == 1 or sy == 1:
+    #     w, h = i.shape
+    #     i = cv2.resize(i, (w // 2, h // 2))
+    #     s1, s2 = calc_grid_size(i)
+    #     return s1 * 2, s2 * 2
+    return sx, sy
+
+print(calc_grid_size(i))
