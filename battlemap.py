@@ -1,123 +1,7 @@
 import enum
 
-import PIL.Image, PIL.ImageTk
-
 import gui_util
-
-# must be either 'pillow' or 'pygame'; currently 'pygame' is somewhat faster
-RENDERER = 'pygame' 
-
-IMAGE_FORMAT = 'RGBA'
-
-class ImageWrapper():
-    def __init__(self, size):
-        self.size = size
-        self.w, self.h = size
-
-    def get_imagetk(self):
-        """return a PIL.ImageTk for use in the tkinter UI"""
-
-    def blit(self, other, offset):
-        """blit other image onto this one with top left at offset"""
-
-    def draw_line(self, start, end, colour, width):
-        """draw a line of width on this image from start to end in colour"""
-
-    def resize(self, new_size):
-        """return a resized version of this image of new_size"""        
-
-    @staticmethod
-    def from_file(path):
-        """return an ImageWrapper with image loaded from path"""
-
-class PygameImage(ImageWrapper):
-    def __init__(self, size, image=None, bg_colour=None):
-        super().__init__(size)
-        self.transparency_colour = gui_util.BG_COLOUR
-        if not image:
-            self.image = pygame.Surface(size)
-            self.image.set_colorkey(self.transparency_colour)
-        
-            if bg_colour:
-                if not bg_colour[3]:
-                    self.image.fill(self.transparency_colour)
-                else:
-                    self.image.fill(bg_colour)
-        else:
-            self.image = image
-            self.image.set_colorkey(self.transparency_colour)
-
-    def get_imagetk(self):
-        return PIL.ImageTk.PhotoImage(PIL.Image.frombytes(
-            IMAGE_FORMAT,
-            self.size,
-            pygame.image.tostring(self.image, IMAGE_FORMAT, False)
-        ))
-
-    def blit(self, other, offset):
-        self.image.blit(other.image, offset)
-
-    def draw_line(self, start, end, colour, width):
-        pygame.draw.line(self.image, colour, start, end, width)
-
-    def resize(self, new_size):
-        return PygameImage(
-            new_size, 
-            pygame.transform.smoothscale(self.image, new_size)
-        )
-
-    @staticmethod
-    def from_file(path):
-        image = pygame.image.load(path)
-        return PygameImage(image.get_size(), image)
-    
-class PillowImage(ImageWrapper):
-    def __init__(self, size, image=None, bg_colour=0):
-        super().__init__(size)
-        if not image:
-            self.image = PIL.Image.new(IMAGE_FORMAT, size, bg_colour)
-        else:
-            self.image = image
-        self.draw = None
-
-    def ensure_draw(self):
-        if self.draw is None:
-            self.draw = PIL.ImageDraw.Draw(self.image)
-
-    def get_imagetk(self):
-        return PIL.ImageTk.PhotoImage(self.image)
-
-    def blit(self, other, offset):
-        self.image.paste(other.image, offset, other.image)
-
-    def draw_line(self, start, end, colour, width):
-        self.ensure_draw()
-        self.draw.line([start, end], colour, width)
-
-    def resize(self, new_size):
-        return PillowImage(new_size, self.image.resize(new_size))
-
-    @staticmethod
-    def from_file(path):
-        image = PIL.Image.open(path).convert(IMAGE_FORMAT)
-        return PillowImage(image.size, image)
-
-if RENDERER == 'pygame':
-    import contextlib
-    with contextlib.redirect_stdout(None):
-        import pygame
-    Image = PygameImage
-elif RENDERER == 'pillow':
-    import PIL.ImageDraw
-    Image = PillowImage
-else:
-    if RENDERER == '':
-        raise ValueError(
-            'No renderer set. RENDERER must be either ' + \
-            '"pygame" or "pillow"'
-        )
-    else:
-        raise ValueError(f'Renderer "{RENDERER}" not available.')
+import image
 
 MARGIN = 10
 
@@ -192,7 +76,7 @@ class BattleMap():
         right = self.vp_w + self.tile_size
         bottom = self.vp_h + self.tile_size
 
-        grid = Image((right, bottom), bg_colour=gui_util.Colours.CLEAR)
+        grid = image.Image((right, bottom), bg_colour=gui_util.Colours.CLEAR)
 
         for i in range(0, self.vp_h // self.tile_size + 2):
             y = i * self.tile_size
@@ -215,7 +99,7 @@ class BattleMap():
         self.grid_image = grid
 
     def render(self):
-        vp = Image(self.vp_size, bg_colour=self.bg_colour)
+        vp = image.Image(self.vp_size, bg_colour=self.bg_colour)
 
         for i in sorted(self.images, key=lambda i: i.z):
             x, y = i.x - self.vp_x, i.y - self.vp_y
@@ -381,4 +265,4 @@ class MapImage():
 
     @staticmethod
     def from_file(path, **kwargs):
-        return MapImage(Image.from_file(path), **kwargs)
+        return MapImage(image.Image.from_file(path), **kwargs)
