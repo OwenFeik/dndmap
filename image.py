@@ -7,9 +7,9 @@ import gui_util
 # must be either 'pillow' or 'pygame'; currently 'pygame' is somewhat faster
 RENDERER = 'pygame' 
 
-IMAGE_FORMAT = 'RGBA'
-
 class ImageWrapper():
+    IMAGE_FORMAT = 'RGBA'
+
     def __init__(self, size):
         self.size = size
         self.w, self.h = size
@@ -27,14 +27,17 @@ class ImageWrapper():
     def draw_line(self, start, end, colour, width):
         """draw a line of width on this image from start to end in colour"""
 
-    def resize(self, new_size):
+    def flip(self, flip_x, flip_y):
+        """flip the image in either the x, y, or both directions"""
+
+    def resize(self, new_size, fast=False):
         """return a resized version of this image of new_size"""
 
-        if not (new_size[0] > 0 and new_size[1] > 0):
+        if not (new_size[0] >= 0 and new_size[1] >= 0):
             raise ValueError('Cannot resize to negative dimensions.')
         return self._resize(new_size)
 
-    def _resize(self, new_size):
+    def _resize(self, new_size, fast=False):
         """resize implementation, after value verification"""
 
     def as_greyscale_array(self):
@@ -64,9 +67,9 @@ class PygameImage(ImageWrapper):
 
     def get_pillow_image(self):
         return PIL.Image.frombytes(
-            IMAGE_FORMAT,
+            Image.IMAGE_FORMAT,
             self.size,
-            pygame.image.tostring(self.image, IMAGE_FORMAT, False)
+            pygame.image.tostring(self.image, Image.IMAGE_FORMAT, False)
         )
 
     def blit(self, other, offset):
@@ -75,11 +78,19 @@ class PygameImage(ImageWrapper):
     def draw_line(self, start, end, colour, width):
         pygame.draw.line(self.image, colour, start, end, width)
 
-    def _resize(self, new_size):
+    def flip(self, flip_x, flip_y):
         return PygameImage(
-            new_size, 
-            pygame.transform.smoothscale(self.image, new_size)
+            self.size,
+            pygame.transform.flip(self.image, flip_x, flip_y)
         )
+
+    def _resize(self, new_size, fast=False):
+        if fast:
+            new_img = pygame.transform.scale(self.image, new_size)
+        else:
+            new_img = pygame.transform.smoothscale(self.image, new_size)
+
+        return PygameImage(new_size, new_img)
 
     @staticmethod
     def from_file(path):
@@ -90,7 +101,7 @@ class PillowImage(ImageWrapper):
     def __init__(self, size, image=None, bg_colour=0):
         super().__init__(size)
         if not image:
-            self.image = PIL.Image.new(IMAGE_FORMAT, size, bg_colour)
+            self.image = PIL.Image.new(Image.IMAGE_FORMAT, size, bg_colour)
         else:
             self.image = image
         self.draw = None
@@ -109,12 +120,27 @@ class PillowImage(ImageWrapper):
         self.ensure_draw()
         self.draw.line([start, end], colour, width)
 
-    def _resize(self, new_size):
-        return PillowImage(new_size, self.image.resize(new_size))
+    def flip(self, flip_x, flip_y):
+        if flip_x and flip_y:
+            new = self.image.transpose(PIL.Image.ROTATE_180)
+        elif flip_x:
+            new = self.image.transpose(PIL.Image.FLIP_LEFT_RIGHT)
+        elif flip_y:
+            new = self.image.transpose(PIL.Image.FLIP_TOP_BOTTOM)
+
+        return PillowImage(self.size, new)
+
+    def _resize(self, new_size, fast=False):
+        if fast:
+            new_img = self.image.resize(new_size, resample=PIL.Image.NEAREST)
+        else:
+            new_img = self.image.resize(new_size)
+
+        return PillowImage(new_size, new_img)
 
     @staticmethod
     def from_file(path):
-        image = PIL.Image.open(path).convert(IMAGE_FORMAT)
+        image = PIL.Image.open(path).convert(Image.IMAGE_FORMAT)
         return PillowImage(image.size, image)
 
 if RENDERER == 'pygame':
