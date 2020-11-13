@@ -35,7 +35,7 @@ class ImageWrapper():
 
         if not (new_size[0] >= 0 and new_size[1] >= 0):
             raise ValueError('Cannot resize to negative dimensions.')
-        return self._resize(new_size)
+        return self._resize(new_size, fast)
 
     def _resize(self, new_size, fast=False):
         """resize implementation, after value verification"""

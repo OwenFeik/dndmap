@@ -230,8 +230,8 @@ class MapImageManager():
         self.images.insert(0, new)
 
 class MapImage():
-    MIN_HEIGHT = 10
-    MIN_WIDTH = 10
+    MIN_HEIGHT = 32
+    MIN_WIDTH = 32
 
     def __init__(self, img, **kwargs):
         self.base_image = img
@@ -277,6 +277,9 @@ class MapImage():
         self._y = self.y
         self._w = self.w
         self._h = self.h
+
+        self._w = max(self._w, self.MIN_WIDTH)
+        self._h = max(self._h, self.MIN_HEIGHT)
 
         self.apply_transform()
 
