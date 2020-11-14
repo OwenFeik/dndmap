@@ -9,6 +9,43 @@ import gui_util
 root = tk.Tk()
 running = True
 
+class BattleMapContextMenu(tk.Menu):
+    def __init__(self, master):
+        super().__init__(master, tearoff=0)
+        self.target = None
+        self.bm = master.bm
+        self.add_command(
+            label="Bring to front",
+            command=lambda: self.bm.bring_to_front(self.target) \
+                if self.target else None
+        )
+        self.add_command(
+            label="Snap to grid",
+            command=self.snap_to_grid
+        )
+        self.add_command(
+            label="Delete",
+            command=lambda: self.bm.remove_image(self.target) \
+                if self.target else None
+        )
+
+    def show(self, img, event):
+        self.target = img
+        self.tk_popup(event.x_root, event.y_root, 0)
+
+    def snap_to_grid(self):
+        if self.target is None:
+            return
+        
+        try:
+            self.bm.snap_to_grid(self.target)
+        except ValueError:
+            tk.messagebox.showerror(
+                'Error',
+                'Failed to detect grid size of this image.'
+            )
+
+
 class BattleMapLabel(tk.Frame):
     FRAME_RATE_TARGET = 60
 
@@ -25,6 +62,8 @@ class BattleMapLabel(tk.Frame):
         self.image = None
         self.create_image()
 
+        self.menu = BattleMapContextMenu(self)
+
         self.bind_events()
 
         self.rendering = True
@@ -40,6 +79,10 @@ class BattleMapLabel(tk.Frame):
         self.label.bind('<ButtonRelease>', self.bm.handle_mouse_up)
         self.label.bind('<MouseWheel>', self.bm.handle_mouse_scroll)
         self.label.bind('<Motion>', self.bm.handle_mouse_motion)
+        self.label.bind(
+            '<Button-3>',
+            lambda e: self.menu.show(self.bm.handle_mouse_down(e), e)
+        )
 
     def destroy(self):
         self.rendering = False

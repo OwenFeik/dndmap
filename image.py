@@ -14,6 +14,9 @@ class ImageWrapper():
         self.size = size
         self.w, self.h = size
 
+    def __str__(self):
+        return f'<Image {self.size}>'
+
     def get_pillow_image(self):
         """return a PIL.Image with this image's data"""
 

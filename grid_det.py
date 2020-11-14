@@ -2,6 +2,8 @@ import numpy as np
 
 import image
 
+MIN_GRID_SIZE = 10
+
 def load_as_greyscale(path):
     """load specified path as a greyscale image"""
     return image.Image.from_file(path).as_greyscale_array()
@@ -52,19 +54,16 @@ def pick_grid_size(deltas, d=20):
 
     return max(deltas, key=lambda k: deltas[k] * k)
 
-def calc_grid_size(path):
-    img = load_as_greyscale(path)
-    rows, cols = get_row_col_stddev(img)
+def calc_grid_size(grey):
+    rows, cols = get_row_col_stddev(grey)
     row_size = pick_grid_size(get_row_deltas(rows))
     col_size = pick_grid_size(get_row_deltas(cols))
 
-    print(row_size, col_size)
+    if row_size < MIN_GRID_SIZE or col_size < MIN_GRID_SIZE:
+        raise ValueError('Failed to find grid in input.')
 
-    if row_size != col_size:
-        raise ValueError('Failed to determine a size for this grid.')
-
-    return row_size
+    return row_size, col_size
 
 if __name__ == '__main__':
     import sys
-    print(calc_grid_size(sys.argv[1]))
+    print(calc_grid_size(load_as_greyscale(sys.argv[1])))

@@ -1,9 +1,8 @@
 import enum
 
 import gui_util
+import grid_det
 import image
-
-GRAB_MARGIN = 10
 
 class DragPoints(enum.Enum):
     NONE = 0
@@ -73,8 +72,28 @@ class BattleMap():
         self.images.add_image(img)
         self.redraw = True
 
+    def remove_image(self, img):
+        self.images.remove_image(img)
+        self.redraw = True
+
+    def bring_to_front(self, img):
+        self.images.bring_to_front(img)
+        self.redraw = True
+
+    def send_to_back(self, img):
+        self.images.send_to_back(img)
+        self.redraw = True
+
     def get_photo_image(self):
         return self.image.get_imagetk()
+
+    def snap_to_grid(self, map_image):
+        img = map_image.base_image
+        row, col = grid_det.calc_grid_size(img.as_greyscale_array())
+        w = img.w // row * self.tile_size
+        h = img.h // col * self.tile_size
+        map_image.set_size(w, h)
+        self.redraw = True
 
     def render_grid(self):
         right = self.vp_w + self.tile_size
@@ -139,10 +158,10 @@ class BattleMap():
             elif type(point) == tuple:
                 gui_util.set_cursor(dragpoint_cursor_mapping[DragPoints.BODY])
         else:
-            # try:
-            self.holding.handle_resize(self.holding_drag_point, x, y)
-            # except ValueError:
-            #     pass
+            try:
+                self.holding.handle_resize(self.holding_drag_point, x, y)
+            except ValueError:
+                pass
             self.redraw = True
 
     def handle_mouse_scroll(self, event):
@@ -179,7 +198,10 @@ class BattleMap():
         elif event.num == 2:
             pass # Middle mouse
         elif event.num == 3:
-            pass # Right click
+            _, img = self.get_hover_state(
+                *self.get_map_coords(event.x, event.y)
+            )
+            return img
         elif event.num in [4, 5]: # Mwheel
             self.handle_mouse_scroll(event)
 
@@ -229,7 +251,24 @@ class MapImageManager():
 
         self.images.insert(0, new)
 
+    def remove_image(self, img):
+        try:
+            self.images.remove(img)
+        except ValueError:
+            pass
+
+    def bring_to_front(self, img):
+        if img in self.images:
+            self.images.remove(img)
+        self.images.insert(len(self.images), img)
+
+    def send_to_back(self, img):
+        if img in self.images:
+            self.images.remove(img)
+        self.images.insert(0, img)
+
 class MapImage():
+    GRAB_MARGIN = 10
     MIN_HEIGHT = 32
     MIN_WIDTH = 32
 
@@ -246,6 +285,13 @@ class MapImage():
 
         self.image = None
         self.apply_transform()
+
+    def __str__(self):
+        return f'<MapImage {self.image} at ({self.x}, {self.y}) flipped ' \
+            f'({self.flipped_x}, {self.flipped_y})>'
+
+    def __repr__(self):
+        return str(self)
 
     @property
     def x(self):
@@ -266,6 +312,10 @@ class MapImage():
     @property
     def h(self):
         return abs(self._h)
+
+    def set_size(self, w, h):
+        self._w = w
+        self._h = h
 
     def end_resize(self):
         if self._w < 0:
@@ -331,13 +381,17 @@ class MapImage():
         self.apply_transform(True)
         
     def touching(self, x, y):
-        in_range_y = -GRAB_MARGIN < y - self.y < self.h + GRAB_MARGIN
-        in_range_x = -GRAB_MARGIN < x - self.x < self.w + GRAB_MARGIN
+        in_range_y = \
+            -MapImage.GRAB_MARGIN < y - self.y < self.h + MapImage.GRAB_MARGIN
+        in_range_x = \
+            -MapImage.GRAB_MARGIN < x - self.x < self.w + MapImage.GRAB_MARGIN
 
-        touching_lft = abs(x - self.x) < GRAB_MARGIN and in_range_y
-        touching_top = abs(y - self.y) < GRAB_MARGIN and in_range_x
-        touching_rgt = abs(x - (self.x + self.w)) < GRAB_MARGIN and in_range_y
-        touching_bot = abs(y - (self.y + self.h)) < GRAB_MARGIN and in_range_x
+        touching_lft = abs(x - self.x) < MapImage.GRAB_MARGIN and in_range_y
+        touching_top = abs(y - self.y) < MapImage.GRAB_MARGIN and in_range_x
+        touching_rgt = \
+            abs(x - (self.x + self.w)) < MapImage.GRAB_MARGIN and in_range_y
+        touching_bot = \
+            abs(y - (self.y + self.h)) < MapImage.GRAB_MARGIN and in_range_x
 
         if touching_lft and touching_top:
             return DragPoints.TOPLEFT
