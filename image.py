@@ -9,6 +9,7 @@ RENDERER = 'pygame'
 
 class ImageWrapper():
     IMAGE_FORMAT = 'RGBA'
+    THUMBNAIL_SIZE = (128, 128)
 
     def __init__(self, size):
         self.size = size
@@ -46,6 +47,10 @@ class ImageWrapper():
     def as_greyscale_array(self):
         """return a 2d array of this image converted to greyscale"""
         return np.asarray(self.get_pillow_image().convert('L'))
+
+    def as_thumbnail(self):
+        """get a thumbnail of this image, to save in db or similar"""
+        return self.resize(*self.THUMBNAIL_SIZE)
 
     @staticmethod
     def from_file(path):
