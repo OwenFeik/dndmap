@@ -12,26 +12,48 @@ running = True
 class BattleMapContextMenu(tk.Menu):
     def __init__(self, master):
         super().__init__(master, tearoff=0)
-        self.target = None
         self.bm = master.bm
+
         self.add_command(
-            label="Bring to front",
-            command=lambda: self.bm.bring_to_front(self.target) \
-                if self.target else None
+            label="Add image"
         )
-        self.add_command(
-            label="Snap to grid",
-            command=self.snap_to_grid
-        )
-        self.add_command(
+
+    def show(self, e):
+        self.tk_popup(e.x_root, e.y_root, 0)
+
+class BattleMapImageContextMenu(BattleMapContextMenu):
+    def __init__(self, master):
+        super().__init__(master)
+        self.target = None
+        
+        self.insert_separator(0)
+        self.insert_command(
+            0,
             label="Delete",
             command=lambda: self.bm.remove_image(self.target) \
                 if self.target else None
         )
+        self.insert_command(
+            0,
+            label="Snap to grid",
+            command=self.snap_to_grid
+        )
+        self.insert_command(
+            0,
+            label="Bring to front",
+            command=lambda: self.bm.bring_to_front(self.target) \
+                if self.target else None
+        )
+        self.insert_command(
+            0,
+            label="Send to back",
+            command=lambda: self.bm.send_to_back(self.target) \
+                if self.target else None
+        )
 
-    def show(self, img, event):
+    def show_on_image(self, e, img):
         self.target = img
-        self.tk_popup(event.x_root, event.y_root, 0)
+        super().show(e)
 
     def snap_to_grid(self):
         if self.target is None:
@@ -62,7 +84,8 @@ class BattleMapLabel(tk.Frame):
         self.image = None
         self.create_image()
 
-        self.menu = BattleMapContextMenu(self)
+        self.background_menu = BattleMapContextMenu(self)
+        self.image_menu = BattleMapImageContextMenu(self)
 
         self.bind_events()
 
@@ -74,15 +97,19 @@ class BattleMapLabel(tk.Frame):
         self.label = tk.Label(self, image=self.image)
         self.label.pack()
 
+    def show_context_menu(self, e):
+        img = self.bm.handle_mouse_down(e)
+        if img is None:
+            self.background_menu.show(e)
+        else:
+            self.image_menu.show_on_image(e, img)
+
     def bind_events(self):
         self.label.bind('<Button>', self.bm.handle_mouse_down)
         self.label.bind('<ButtonRelease>', self.bm.handle_mouse_up)
         self.label.bind('<MouseWheel>', self.bm.handle_mouse_scroll)
         self.label.bind('<Motion>', self.bm.handle_mouse_motion)
-        self.label.bind(
-            '<Button-3>',
-            lambda e: self.menu.show(self.bm.handle_mouse_down(e), e)
-        )
+        self.label.bind('<Button-3>', self.show_context_menu)
 
     def destroy(self):
         self.rendering = False
@@ -127,8 +154,6 @@ class Application(tk.Frame):
 
         self.image = BattleMapLabel(self)
         self.image.pack(side='bottom')
-        # self.image.bind('<Button>', lambda e: print(e.__dict__))
-        # self.image.bind('<ButtonRelease>', lambda e: print(e.__dict__))
 
         self.quit = tk.Button(self, text='Exit', fg='red', 
             command=self.master.destroy)
