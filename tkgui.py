@@ -73,7 +73,7 @@ class BattleMapLabel(tk.Frame):
 
     def __init__(self, master=None, **kwargs):
         super().__init__(master)
-        self.bm = battlemap.BattleMap(master=self, **kwargs)
+        self.bm = battlemap.BattleMap(**kwargs)
 
         # test images
         self.bm.add_image('map.jpg')

@@ -60,7 +60,7 @@ class Database():
 
 class ProjectDatabase(Database):
     """
-    This class is used for saving a project to a file. It will store images an
+    This class is used for saving a project to a file. It will store images and
     similar assets as blobs for portability.
     """
 
@@ -84,7 +84,8 @@ class ProjectDatabase(Database):
         self.startup_commands.append(
             'CREATE TABLE IF NOT EXISTS stages ('
                 'id INTEGER PRIMARY KEY, '
-                'name TEXT, '
+                'name TEXT UNIQUE, '
+                'index INTEGER UNIQUE, '
                 'description TEXT, '
                 'width INTEGER, '
                 'height INTEGER, '
@@ -104,21 +105,28 @@ class ProjectDatabase(Database):
                 'FOREIGN KEY(stage) REFERENCES stages(id)'
             ');'
         )
+        self.startup_commands.append(
+            'CREATE TABLE IF NOT EXISTS meta ('
+                'key INTEGER PRIMARY KEY',
+                'value TEXT'
+            ');'
+        )
 
     def db_tup_from_asset(self, asset):
+        blob, blob_hash = asset.get_data()
         return (
             asset.id,
             asset.name,
             asset.type,
             asset.properties,
             asset.thumbnail,
-            asset.data,
-            asset.hash
+            blob,
+            blob_hash
         )
  
     def add_asset(self, asset):
         self.execute(
-            'INSERT INTO assets('
+            'REPLACE INTO assets('
                 'id, name, type, properties, thumbnail, data, hash'
             ') VALUES (?, ?, ?, ?, ?, ?, ?);',
             self.db_tup_from_asset(asset)
@@ -126,30 +134,48 @@ class ProjectDatabase(Database):
     
     def add_assets(self, assets):
         self.execute_many(
-            'INSERT INTO assets('
+            'REPLACE INTO assets('
                 'id, name, type, properties, thumbnail, data, hash'
             ') VALUES (?, ?, ?, ?, ?, ?, ?);',
             [self.db_tup_from_asset(a) for a in assets]
         )
 
-    def db_tup_from_stage(self, stage):
-        return (
-            stage.id,
-            stage.name,
-            stage.description,
-            stage.width,
-            stage.height,
-            stage.tile_size,
-            stage.notes_json
+    def load_asset(self, asset_id):
+        return self.fetch_one(
+            'SELECT * FROM assets WHERE id = ?;',
+            (asset_id,)
+        )
+
+    def load_asset_list(self):
+        return self.fetch_all(
+            'SELECT id, name, type, thumbnail FROM assets;'
         )
 
     def add_stages(self, stages):
-        self.execute(
-            'INSERT INTO stages('
-                'id, name, description, width, height, tile_size, notes'
-            ') VALUES (?, ?, ?, ?, ?, ?, ?);',
-            [self.db_tup_from_stage(s) for s in stages]
+        self.execute_many(
+            'REPLACE INTO stages('
+                'id, name, index, description, width, height, tile_size, notes'
+            ') VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+            [(
+                s.id,
+                s.name,
+                i,
+                s.description,
+                s.width,
+                s.height,
+                s.tile_size,
+                s.notes_json
+            ) for i, s in enumerate(stages)]
         )
+
+    def add_meta(self, entries):
+        self.execute_many(
+            'REPLACE INTO meta (key, value) VALUES (?, ?);',
+            entries
+        )
+
+    def load_meta(self):
+        return self.fetch_all('SELECT * FROM meta;')
 
 class ArchiveDatabase(Database):
     """
@@ -174,6 +200,12 @@ class ArchiveDatabase(Database):
                 'description TEXT'
             ');'
         )
+        self.startup_commands.append(
+            'CREATE TABLE IF NOT EXISTS projects ('
+                'path TEXT COLLATE NOCASE PRIMARY KEY, '
+                'name TEXT'
+            ');'
+        )
 
     def db_tup_from_asset(self, asset):
         return (
@@ -191,4 +223,16 @@ class ArchiveDatabase(Database):
                 'path, name, type, properties, thumbnail, description'
             ') VALUES (?, ?, ?, ?, ?, ?);',
             self.db_tup_from_asset(asset)
+        )
+
+    def db_tup_from_project(self, project):
+        return (
+            project.path,
+            project.name
+        )
+
+    def add_project(self, project):
+        self.execute(
+            'REPLACE INTO projects(path, name) VALUES (?, ?);',
+            self.db_tup_from_project(project)
         )

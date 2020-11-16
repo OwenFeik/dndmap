@@ -1,8 +1,10 @@
 import enum
+import json
 
 import gui_util
 import grid_det
 import image
+import library
 
 class DragPoints(enum.Enum):
     NONE = 0
@@ -35,9 +37,7 @@ class BattleMap():
     ZOOM_MAX = 1.5
     ZOOM_MIN = 0.1
 
-    def __init__(self, master, **kwargs):
-        self.master = master
-
+    def __init__(self, **kwargs):
         self.images = MapImageManager()
 
         self.vp_base_w, self.vp_base_h = kwargs.get('vp_size', (1280, 720))
@@ -99,7 +99,10 @@ class BattleMap():
         right = self.vp_w + self.tile_size
         bottom = self.vp_h + self.tile_size
 
-        grid = image.Image((right, bottom), bg_colour=gui_util.Colours.CLEAR)
+        grid = image.Image(
+            size=(right, bottom),
+            bg_colour=gui_util.Colours.CLEAR
+        )
 
         for i in range(0, self.vp_h // self.tile_size + 2):
             y = i * self.tile_size
@@ -122,7 +125,10 @@ class BattleMap():
         self.grid_image = grid
 
     def render(self):
-        vp = image.Image(self.vp_size, bg_colour=self.bg_colour)
+        vp = image.Image(
+            size=self.vp_size,
+            bg_colour=self.bg_colour
+        )
 
         for i in self.images:
             x, y = i.x - self.vp_x, i.y - self.vp_y
@@ -242,18 +248,22 @@ class MapImageManager():
     def add_image(self, img):
         if type(img) == MapImage:
             new = img
-        elif type(img) == image.Image:
+        elif type(img) == image.ImageAsset:
             new = MapImage(img)
+        elif type(img) == image.Image:
+            new = MapImage(image.ImageAsset(img))
         elif type(img) == str:
             new = MapImage.from_file(img)
         else:
             raise ValueError(f'Not sure how to add {img} to battlemap.')
 
+        new.z = property(lambda: self.images.index(img))
         self.images.insert(0, new)
 
     def remove_image(self, img):
         try:
             self.images.remove(img)
+            img.z = None
         except ValueError:
             pass
 
@@ -267,19 +277,19 @@ class MapImageManager():
             self.images.remove(img)
         self.images.insert(0, img)
 
-class MapImage():
+class MapImage(library.PositionedAsset):
     GRAB_MARGIN = 10
     MIN_HEIGHT = 32
     MIN_WIDTH = 32
 
     def __init__(self, img, **kwargs):
-        self.base_image = img
+        super().__init__(img)
+        self.base_image = self.asset.image
 
         w, h = img.size
         self._w = kwargs.get('width', kwargs.get('w', w))
         self._h = kwargs.get('height', kwargs.get('h', h))
-        self._x = kwargs.get('x', 0)
-        self._y = kwargs.get('y', 0)
+
 
         self.flipped_x = self.flipped_y = False
 
@@ -312,6 +322,17 @@ class MapImage():
     @property
     def h(self):
         return abs(self._h)
+
+    @property
+    def properties(self):
+        return json.dumps({
+            'w': self.w,
+            'h': self.h,
+            'x': self.x,
+            'y': self.y,
+            'flipped_x': self.flipped_x,
+            'flipped_y': self.flipped_y
+        })
 
     def set_size(self, w, h):
         self._w = w
@@ -416,4 +437,4 @@ class MapImage():
 
     @staticmethod
     def from_file(path, **kwargs):
-        return MapImage(image.Image.from_file(path), **kwargs)
+        return MapImage(image.ImageAsset.from_file(path), **kwargs)

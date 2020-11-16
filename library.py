@@ -1,7 +1,9 @@
 import enum
 import json
+import time
 
 import database
+import image
 
 class AssetType(enum.Enum):
     IMAGE = 0
@@ -30,54 +32,76 @@ class Asset():
         """A thumbnail representation of this asset."""
         return None
 
-    @property
-    def data(self):
-        """A blob of this asset for storage in database."""
-        return None
-
-    @property
-    def hash(self):
-        """A hash of this asset."""
-        return 0
+    def get_data(self):
+        """A blob of this asset and a hash of the blob."""
+        return None, None
 
     def save(self, path):
         """Save the asset at the location specified by path."""
 
-class ImageAsset(Asset):
-    """An image, like a map or a token."""
-
-    def __init__(self, name, image, asset_type=AssetType.IMAGE):
-        super().__init__(name, asset_type)
-        self.image = image
-    
-    def save(self, path):
-        pass
-
-class TokenAsset(ImageAsset):
+class TokenAsset(Asset):
     """A token like a player or monster image."""
 
-    def __init__(self, name, image, size):
-        """The image for the token, the size of the token (in tiles)."""
+    def __init__(self, **kwargs):
+        kwargs['asset_type'] = AssetType.TOKEN
+        super().__init__(**kwargs)
 
-        super().__init__(name, image, AssetType.TOKEN)
-
-        self.size = size
-        self.w, self.h = size
+        w, h = kwargs.get('size', (1, 1))
+        self.w = kwargs.get('w', kwargs.get('width', w))
+        self.h = kwargs.get('h', kwargs.get('height', h))
     
+        self.image = kwargs.get('image', image.ImageAsset())
+
+    @property
+    def size(self):
+        return self.w, self.h
+
     @property
     def properties(self):
         return json.dumps({'w': self.w, 'h': self.h})
 
-class PositionedAsset(Asset):
+class AssetWrapper(Asset):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._asset = kwargs.get('asset')
+
+    @property
+    def asset(self):
+        return self._asset
+
+class PreviewAsset(AssetWrapper):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._thumbnail = kwargs.get('thumbnail', image.Image())
+
+    @property
+    def thumbnail(self):
+        return self._thumbnail
+
+class PositionedAsset(AssetWrapper):
     """A wrapper which holds another asset, and it's position in a stage."""
 
-    def __init__(self, name, asset, x, y, z):
-        super().__init__(name)
-        self.asset = asset
-        self.x = x
-        self.y = y
-        self.z = z
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._x = kwargs.get('x', 0)
+        self._y = kwargs.get('y', 0)
+        self.z = kwargs.get('z', 0)
 
+    @property
+    def x(self):
+        return self._x
+    
+    @property
+    def y(self):
+        return self._y
+
+    @property
+    def properties(self):
+        return json.dumps({
+            'x': self.x,
+            'y': self.y,
+            'z': self.z
+        })
 
 class AssetLibrary():
     """A collection of assets."""
@@ -137,12 +161,25 @@ class ArchiveLibrary(AssetLibrary):
     list of them.
     """
 
+class ProjectProperties(enum.Enum):
+    NAME = 1
+    DESCRIPTION = 2
+    LAST_EDITED = 3
+    ACTIVE_STAGE = 4
+
 class Project():
     """A collect of stages for a specific project."""
 
-    def __init__(self):
-        self.stages = []
-        self.assets = AssetLibrary()
+    def __init__(self, **kwargs):
+        self.name = kwargs.get('name', 'untitled')
+        self.path = kwargs.get('path', '')
+        self.stages = kwargs.get('stages', [])
+        self.active_stage = None
+        self.assets = kwargs.get('assets', AssetLibrary())
+        self.description = kwargs.get('description', '')
+
+    def save(self):
+        self.export(self.path)
 
     def export(self, path):
         """Save all of the assets in this project to a file."""
@@ -150,4 +187,12 @@ class Project():
         db = database.ProjectDatabase(path)
         db.add_assets(self.assets)
         db.add_stages(self.stages)
-
+        db.add_meta([
+            (ProjectProperties.NAME, self.name),
+            (ProjectProperties.DESCRIPTION, self.description),
+            (ProjectProperties.LAST_EDITED, str(time.time())),
+            (
+                ProjectProperties.ACTIVE_STAGE,
+                self.stages.index(self.active_stage)
+            )
+        ])
