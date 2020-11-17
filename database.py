@@ -94,6 +94,7 @@ class ProjectDatabase(Database):
                 'width INTEGER, '
                 'height INTEGER, '
                 'tile_size INTEGER, '
+                'zoom_level FLOAT, '
                 'notes TEXT'
             ');'
         )
@@ -116,6 +117,28 @@ class ProjectDatabase(Database):
             ');'
         )
 
+        self.add_commands()
+
+    def add_commands(self):
+        self.commands = {
+            'ADD_ASSET':
+                'REPLACE INTO assets('
+                    'id, name, type, properties, thumbnail, data, hash'
+                ') VALUES (?, ?, ?, ?, ?, ?, ?);',
+            'ADD_STAGE':
+                'REPLACE INTO stages('
+                    'id, '
+                    'name, '
+                    'index, '
+                    'description, '
+                    'width, '
+                    'height, '
+                    'tile_size, '
+                    'zoom_level, '
+                    'notes'
+                ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);'
+        }
+
     def db_tup_from_asset(self, asset):
         blob, blob_hash = asset.get_data()
         return (
@@ -132,9 +155,7 @@ class ProjectDatabase(Database):
         """Adds an asset to the db, setting it's id property if unset."""
 
         self.execute(
-            'REPLACE INTO assets('
-                'id, name, type, properties, thumbnail, data, hash'
-            ') VALUES (?, ?, ?, ?, ?, ?, ?);',
+            self.commands['ADD_ASSET'],
             self.db_tup_from_asset(asset)
         )
 
@@ -147,9 +168,7 @@ class ProjectDatabase(Database):
         """Add assets to the db, setting their ids if unset."""
 
         self.execute_many(
-            'REPLACE INTO assets('
-                'id, name, type, properties, thumbnail, data, hash'
-            ') VALUES (?, ?, ?, ?, ?, ?, ?);',
+            self.commands['ADD_ASSET'],
             [self.db_tup_from_asset(a) for a in assets if a.id is not None]
         )
         for a in [a for a in assets if a.id is None]:
@@ -197,6 +216,7 @@ class ProjectDatabase(Database):
             stage.width,
             stage.height,
             stage.tile_size,
+            stage.zoom_level,
             stage.notes_json
         )
 
@@ -204,9 +224,7 @@ class ProjectDatabase(Database):
         """Insert a stage to the db, setting its id if unset."""
 
         self.execute(
-            'REPLACE INTO stages('
-                'id, name, index, description, width, height, tile_size, notes'
-            ') VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+            self.commands['ADD_STAGE'],
             self.db_tup_from_stage(stage, index)
         )
 
@@ -223,12 +241,7 @@ class ProjectDatabase(Database):
             else:
                 batch.append(self.db_tup_from_stage(s, i))
 
-        self.execute_many(
-            'REPLACE INTO stages('
-                'id, name, index, description, width, height, tile_size, notes'
-            ') VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
-            batch
-        )
+        self.execute_many(self.commands['ADD_STAGE'], batch)
         for tup in indiv:
             self.add_stage(*tup)
 

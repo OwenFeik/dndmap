@@ -3,8 +3,8 @@ import numpy as np
 
 import PIL.Image, PIL.ImageTk
 
+import asset_utils
 import gui_util
-import library
 import util
 
 # must be either 'pillow' or 'pygame'; currently 'pygame' is somewhat faster
@@ -187,11 +187,11 @@ class PillowImage(ImageWrapper):
         image = PIL.Image.open(path).convert(Image.IMAGE_FORMAT)
         return PillowImage(size=image.size, image=image)
 
-class ImageAsset(library.Asset):
+class ImageAsset(asset_utils.Asset):
     """An image, like a map or a token."""
 
     def __init__(self, **kwargs):
-        kwargs['asset_type'] = library.AssetType.IMAGE
+        kwargs['asset_type'] = asset_utils.AssetType.IMAGE
         super().__init__(**kwargs)
         self.image = kwargs.get('image', Image())
     

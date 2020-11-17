@@ -1,3 +1,5 @@
+import enum
+
 class ModKeys():
     SHIFT_L = 65505
     SHIFT_R = 65506
@@ -18,6 +20,13 @@ BG_COLOUR = Colours.LIGHT_GREY
 def get_hex_colour(rgba):
     *rgb, _a = rgba
     return '#' + ''.join([hex(i)[2:] for i in rgb])
+
+def encode_as_integer(rgba):
+    return int('0x' + ''.join([hex(i)[2:] for i in rgba]), 16)
+
+def decode_to_colour(rgba_int):
+    string = hex(rgba_int)[2:]
+    return tuple([int(string[i:i + 2], 16) for i in range(0, 8, 2)])
 
 class KeyHandler():
     def __init__(self):
@@ -58,3 +67,28 @@ cursor_manager = CursorManager()
 
 init_cursor_manager = cursor_manager.init_cursor_manager
 set_cursor = cursor_manager.set_cursor
+
+class DragPoints(enum.Enum):
+    NONE = 0
+    BODY = enum.auto()
+    LEFT = enum.auto()
+    RIGHT = enum.auto()
+    TOP = enum.auto()
+    BOT = enum.auto()
+    TOPLEFT = enum.auto()
+    TOPRIGHT = enum.auto()
+    BOTLEFT = enum.auto()
+    BOTRIGHT = enum.auto()
+
+dragpoint_cursor_mapping = {
+    DragPoints.NONE: '',
+    DragPoints.BODY: 'fleur',
+    DragPoints.LEFT: 'sb_h_double_arrow',
+    DragPoints.RIGHT: 'sb_h_double_arrow',
+    DragPoints.TOP: 'sb_v_double_arrow',
+    DragPoints.BOT: 'sb_v_double_arrow',
+    DragPoints.TOPLEFT: 'sizing',
+    DragPoints.TOPRIGHT: 'sizing',
+    DragPoints.BOTLEFT: 'sizing',
+    DragPoints.BOTRIGHT: 'sizing'
+}

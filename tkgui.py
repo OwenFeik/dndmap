@@ -76,8 +76,8 @@ class BattleMapLabel(tk.Frame):
         self.bm = battlemap.BattleMap(**kwargs)
 
         # test images
-        self.bm.add_image('map.jpg')
-        self.bm.add_image('map2.jpg')
+        self.bm.stage.add('map.jpg')
+        self.bm.stage.add('map2.jpg')
 
         self.bm.render()
 

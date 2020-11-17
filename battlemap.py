@@ -1,35 +1,7 @@
-import enum
-import json
-
 import gui_util
 import grid_det
 import image
-import library
-
-class DragPoints(enum.Enum):
-    NONE = 0
-    BODY = enum.auto()
-    LEFT = enum.auto()
-    RIGHT = enum.auto()
-    TOP = enum.auto()
-    BOT = enum.auto()
-    TOPLEFT = enum.auto()
-    TOPRIGHT = enum.auto()
-    BOTLEFT = enum.auto()
-    BOTRIGHT = enum.auto()
-
-dragpoint_cursor_mapping = {
-    DragPoints.NONE: '',
-    DragPoints.BODY: 'fleur',
-    DragPoints.LEFT: 'sb_h_double_arrow',
-    DragPoints.RIGHT: 'sb_h_double_arrow',
-    DragPoints.TOP: 'sb_v_double_arrow',
-    DragPoints.BOT: 'sb_v_double_arrow',
-    DragPoints.TOPLEFT: 'sizing',
-    DragPoints.TOPRIGHT: 'sizing',
-    DragPoints.BOTLEFT: 'sizing',
-    DragPoints.BOTRIGHT: 'sizing'
-}
+import stage
 
 class BattleMap():
     SCROLL_SPEED_COEFF = 0.2 
@@ -38,14 +10,10 @@ class BattleMap():
     ZOOM_MIN = 0.1
 
     def __init__(self, **kwargs):
-        self.images = MapImageManager()
-
         self.vp_base_w, self.vp_base_h = kwargs.get('vp_size', (1280, 720))
         self.vp_x, self.vp_y = kwargs.get('vp_pos', (0, 0))
-        self.width, self.height = kwargs.get('map_size', (128, 128))
-        self.tile_size = kwargs.get('tile_size', 32)
-        self.zoom_level = kwargs.get('zoom_level', 1.25)
-        self.bg_colour = kwargs.get('bg_colour', (0, 0, 0, 0))
+
+        self.stage = kwargs.get('stage', stage.Stage())
 
         self.image = None
         self.grid_image = None
@@ -58,31 +26,15 @@ class BattleMap():
 
     @property
     def vp_w(self):
-        return int(self.zoom_level * self.vp_base_w)
+        return int(self.stage.zoom_level * self.vp_base_w)
     
     @property
     def vp_h(self):
-        return int(self.zoom_level * self.vp_base_h)
+        return int(self.stage.zoom_level * self.vp_base_h)
 
     @property
     def vp_size(self):
         return self.vp_w, self.vp_h
-
-    def add_image(self, img):
-        self.images.add_image(img)
-        self.redraw = True
-
-    def remove_image(self, img):
-        self.images.remove_image(img)
-        self.redraw = True
-
-    def bring_to_front(self, img):
-        self.images.bring_to_front(img)
-        self.redraw = True
-
-    def send_to_back(self, img):
-        self.images.send_to_back(img)
-        self.redraw = True
 
     def get_photo_image(self):
         return self.image.get_imagetk()
@@ -90,22 +42,22 @@ class BattleMap():
     def snap_to_grid(self, map_image):
         img = map_image.base_image
         row, col = grid_det.calc_grid_size(img.as_greyscale_array())
-        w = img.w // row * self.tile_size
-        h = img.h // col * self.tile_size
+        w = img.w // row * self.stage.tile_size
+        h = img.h // col * self.stage.tile_size
         map_image.set_size(w, h)
         self.redraw = True
 
     def render_grid(self):
-        right = self.vp_w + self.tile_size
-        bottom = self.vp_h + self.tile_size
+        right = self.vp_w + self.stage.tile_size
+        bottom = self.vp_h + self.stage.tile_size
 
         grid = image.Image(
             size=(right, bottom),
             bg_colour=gui_util.Colours.CLEAR
         )
 
-        for i in range(0, self.vp_h // self.tile_size + 2):
-            y = i * self.tile_size
+        for i in range(0, self.vp_h // self.stage.tile_size + 2):
+            y = i * self.stage.tile_size
             grid.draw_line(
                 (0, y),
                 (right, y),
@@ -113,8 +65,8 @@ class BattleMap():
                 self.grid_line_width
             )
         
-        for i in range(0, self.vp_w // self.tile_size + 2):
-            x = i * self.tile_size 
+        for i in range(0, self.vp_w // self.stage.tile_size + 2):
+            x = i * self.stage.tile_size 
             grid.draw_line(
                 (x, 0),
                 (x, bottom),
@@ -127,42 +79,47 @@ class BattleMap():
     def render(self):
         vp = image.Image(
             size=self.vp_size,
-            bg_colour=self.bg_colour
+            bg_colour=self.stage.bg_colour
         )
 
-        for i in self.images:
+        for i in self.stage:
             x, y = i.x - self.vp_x, i.y - self.vp_y
             if 0 < x + i.w and x < self.vp_w and 0 < y + i.h and y < self.vp_h:
                 vp.blit(i.image, (x, y))
 
         vp.blit(
             self.grid_image,
-            (-(self.vp_x % self.tile_size), -(self.vp_y % self.tile_size))
+            (
+                -(self.vp_x % self.stage.tile_size),
+                -(self.vp_y % self.stage.tile_size)
+            )
         )
 
         self.image = vp.resize((self.vp_base_w, self.vp_base_h))
         self.redraw = False
 
     def get_hover_state(self, x, y):
-        result = DragPoints.NONE, None
-        for i in self.images:
+        result = gui_util.DragPoints.NONE, None
+        for i in self.stage:
             drag_point = i.touching(x, y)
-            if drag_point != DragPoints.NONE:
+            if drag_point != gui_util.DragPoints.NONE:
                 result = (drag_point, i)
         return result
 
     def get_map_coords(self, e_x, e_y):
-        return int(e_x * self.zoom_level) + self.vp_x, \
-            int(e_y * self.zoom_level) + self.vp_y
+        return int(e_x * self.stage.zoom_level) + self.vp_x, \
+            int(e_y * self.stage.zoom_level) + self.vp_y
 
     def handle_mouse_motion(self, event):
         x, y = self.get_map_coords(event.x, event.y)
         if self.holding == None:
             point, _ = self.get_hover_state(x, y)
-            if point in dragpoint_cursor_mapping:
-                gui_util.set_cursor(dragpoint_cursor_mapping[point])
+            if point in gui_util.dragpoint_cursor_mapping:
+                gui_util.set_cursor(gui_util.dragpoint_cursor_mapping[point])
             elif type(point) == tuple:
-                gui_util.set_cursor(dragpoint_cursor_mapping[DragPoints.BODY])
+                gui_util.set_cursor(
+                    gui_util.dragpoint_cursor_mapping[gui_util.DragPoints.BODY]
+                )
         else:
             try:
                 self.holding.handle_resize(self.holding_drag_point, x, y)
@@ -179,18 +136,24 @@ class BattleMap():
         zoom = gui_util.get_ctrl_down()
         x = gui_util.get_shift_down()
         if zoom:
-            self.zoom_level += BattleMap.ZOOM_SPEED_COEFF * delta
-            self.zoom_level = max(
-                min(self.zoom_level, BattleMap.ZOOM_MAX),
+            self.stage.zoom_level += BattleMap.ZOOM_SPEED_COEFF * delta
+            self.stage.zoom_level = max(
+                min(self.stage.zoom_level, BattleMap.ZOOM_MAX),
                 BattleMap.ZOOM_MIN
             )
             self.render_grid()
         elif x:
             self.vp_x += int(BattleMap.SCROLL_SPEED_COEFF * delta)
-            self.vp_x = max(min(self.vp_x, self.width * self.tile_size), 0)
+            self.vp_x = max(
+                min(self.vp_x, self.stage.width * self.stage.tile_size),
+                0
+            )
         else:
             self.vp_y += int(BattleMap.SCROLL_SPEED_COEFF * delta)
-            self.vp_y = max(min(self.vp_y, self.width * self.tile_size), 0)
+            self.vp_y = max(
+                min(self.vp_y, self.stage.height * self.stage.tile_size),
+                0
+            )
         self.redraw = True
 
     def handle_mouse_down(self, event):
@@ -198,7 +161,7 @@ class BattleMap():
             drag_point, img = self.get_hover_state(
                 *self.get_map_coords(event.x, event.y)
             )
-            if drag_point != DragPoints.NONE:
+            if drag_point != gui_util.DragPoints.NONE:
                 self.holding = img
                 self.holding_drag_point = drag_point
         elif event.num == 2:
@@ -218,223 +181,3 @@ class BattleMap():
             self.holding = None
             self.holding_drag_point = None
             self.redraw = True
-
-class MapImageManager():
-    """
-    Stores a list of MapImage objects and ensures that they remain ordered by
-    z-index for easier iteration in the BattleMap class. Lower z-indexes will
-    be reached first during iteration. Negative z-index is acceptable. A new
-    image will be placed first in z-index ordering.
-    """
-
-    def __init__(self):
-        self.images = []
-        self._iter_index = -1
-
-    def __len__(self):
-        return len(self.images)
-
-    def __iter__(self):
-        self._iter_index = -1
-        return self
-
-    def __next__(self):
-        self._iter_index += 1
-        if self._iter_index < len(self.images):
-            return self.images[self._iter_index]
-        else:
-            raise StopIteration()
-
-    def add_image(self, img):
-        if type(img) == MapImage:
-            new = img
-        elif type(img) == image.ImageAsset:
-            new = MapImage(img)
-        elif type(img) == image.Image:
-            new = MapImage(image.ImageAsset(image=img))
-        elif type(img) == str:
-            new = MapImage.from_file(img)
-        else:
-            raise ValueError(f'Not sure how to add {img} to battlemap.')
-
-        new.z = property(lambda: self.images.index(img))
-        self.images.insert(0, new)
-
-    def remove_image(self, img):
-        try:
-            self.images.remove(img)
-            img.z = None
-        except ValueError:
-            pass
-
-    def bring_to_front(self, img):
-        if img in self.images:
-            self.images.remove(img)
-        self.images.insert(len(self.images), img)
-
-    def send_to_back(self, img):
-        if img in self.images:
-            self.images.remove(img)
-        self.images.insert(0, img)
-
-class MapImage(library.PositionedAsset):
-    GRAB_MARGIN = 10
-    MIN_HEIGHT = 32
-    MIN_WIDTH = 32
-
-    def __init__(self, img, **kwargs):
-        super().__init__(img)
-        self.base_image = self.asset.image
-
-        w, h = img.size
-        self._w = kwargs.get('width', kwargs.get('w', w))
-        self._h = kwargs.get('height', kwargs.get('h', h))
-
-
-        self.flipped_x = self.flipped_y = False
-
-        self.image = None
-        self.apply_transform()
-
-    def __str__(self):
-        return f'<MapImage {self.image} at ({self.x}, {self.y}) flipped ' \
-            f'({self.flipped_x}, {self.flipped_y})>'
-
-    def __repr__(self):
-        return str(self)
-
-    @property
-    def x(self):
-        if self._w < 0:
-            return self._x + self._w
-        return self._x
-
-    @property
-    def y(self):
-        if self._h < 0:
-            return self._y + self._h
-        return self._y
-
-    @property
-    def w(self):
-        return abs(self._w)
-    
-    @property
-    def h(self):
-        return abs(self._h)
-
-    @property
-    def properties(self):
-        return json.dumps({
-            'w': self.w,
-            'h': self.h,
-            'x': self.x,
-            'y': self.y,
-            'flipped_x': self.flipped_x,
-            'flipped_y': self.flipped_y
-        })
-
-    def set_size(self, w, h):
-        self._w = w
-        self._h = h
-
-    def end_resize(self):
-        if self._w < 0:
-            self.flipped_x = not self.flipped_x
-        if self._h < 0:
-            self.flipped_y = not self.flipped_y
-
-        self._x = self.x
-        self._y = self.y
-        self._w = self.w
-        self._h = self.h
-
-        self._w = max(self._w, self.MIN_WIDTH)
-        self._h = max(self._h, self.MIN_HEIGHT)
-
-        self.apply_transform()
-
-    def apply_transform(self, fast=False):
-        flip_x = (self._w < 0) ^ self.flipped_x
-        flip_y = (self._h < 0) ^ self.flipped_y
-
-        if flip_x or flip_y:
-            self.image = self.base_image.flip(
-                flip_x, flip_y
-            ).resize((self.w, self.h), fast)
-        else:
-            self.image = self.base_image.resize((self.w, self.h), fast)
-
-    def handle_resize(self, drag_point, x, y):
-        if drag_point in [
-            DragPoints.TOP,
-            DragPoints.TOPLEFT,
-            DragPoints.TOPRIGHT
-        ]:
-            self._h += self._y - y
-            self._y = y
-        elif drag_point in [
-            DragPoints.BOT,
-            DragPoints.BOTLEFT,
-            DragPoints.BOTRIGHT
-        ]:
-            self._h = y - self._y
-        
-        if drag_point in [
-            DragPoints.LEFT,
-            DragPoints.TOPLEFT,
-            DragPoints.BOTLEFT
-        ]:
-            self._w += self._x - x
-            self._x = x
-        elif drag_point in [
-            DragPoints.RIGHT,
-            DragPoints.TOPRIGHT,
-            DragPoints.BOTRIGHT
-        ]:
-            self._w = x - self._x
-
-        if type(drag_point) == tuple:
-            dx, dy = drag_point
-            self._x = x - dx
-            self._y = y - dy
-
-        self.apply_transform(True)
-        
-    def touching(self, x, y):
-        in_range_y = \
-            -MapImage.GRAB_MARGIN < y - self.y < self.h + MapImage.GRAB_MARGIN
-        in_range_x = \
-            -MapImage.GRAB_MARGIN < x - self.x < self.w + MapImage.GRAB_MARGIN
-
-        touching_lft = abs(x - self.x) < MapImage.GRAB_MARGIN and in_range_y
-        touching_top = abs(y - self.y) < MapImage.GRAB_MARGIN and in_range_x
-        touching_rgt = \
-            abs(x - (self.x + self.w)) < MapImage.GRAB_MARGIN and in_range_y
-        touching_bot = \
-            abs(y - (self.y + self.h)) < MapImage.GRAB_MARGIN and in_range_x
-
-        if touching_lft and touching_top:
-            return DragPoints.TOPLEFT
-        if touching_lft and touching_bot:
-            return DragPoints.BOTLEFT
-        if touching_lft:
-            return DragPoints.LEFT
-        if touching_rgt and touching_top:
-            return DragPoints.TOPRIGHT
-        if touching_rgt and touching_bot:
-            return DragPoints.BOTRIGHT
-        if touching_rgt:
-            return DragPoints.RIGHT
-        if touching_top:
-            return DragPoints.TOP
-        if touching_bot:
-            return DragPoints.BOT
-        if in_range_x and in_range_y:
-            return (x - self._x, y - self._y)
-
-        return DragPoints.NONE
-
-    @staticmethod
-    def from_file(path, **kwargs):
-        return MapImage(image.ImageAsset.from_file(path), **kwargs)
