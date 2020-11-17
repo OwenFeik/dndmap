@@ -251,7 +251,7 @@ class MapImageManager():
         elif type(img) == image.ImageAsset:
             new = MapImage(img)
         elif type(img) == image.Image:
-            new = MapImage(image.ImageAsset(img))
+            new = MapImage(image.ImageAsset(image=img))
         elif type(img) == str:
             new = MapImage.from_file(img)
         else:

@@ -52,6 +52,10 @@ class Database():
     def fetch_all(self, command, tup=None):
         return self.execute_cursor(command, tup).fetchall()
 
+    def fetch_single(self, command, tup=None):
+        ret, = self.fetch_one(command, tup)
+        return ret
+
     def commit(self):
         self.conn.commit()
 
@@ -125,20 +129,31 @@ class ProjectDatabase(Database):
         )
  
     def add_asset(self, asset):
+        """Adds an asset to the db, setting it's id property if unset."""
+
         self.execute(
             'REPLACE INTO assets('
                 'id, name, type, properties, thumbnail, data, hash'
             ') VALUES (?, ?, ?, ?, ?, ?, ?);',
             self.db_tup_from_asset(asset)
         )
+
+        if asset.id is None:
+            asset.id = self.fetch_single(
+                'SELECT last_insert_rowid() FROM assets;'
+            ) 
     
     def add_assets(self, assets):
+        """Add assets to the db, setting their ids if unset."""
+
         self.execute_many(
             'REPLACE INTO assets('
                 'id, name, type, properties, thumbnail, data, hash'
             ') VALUES (?, ?, ?, ?, ?, ?, ?);',
-            [self.db_tup_from_asset(a) for a in assets]
+            [self.db_tup_from_asset(a) for a in assets if a.id is not None]
         )
+        for a in [a for a in assets if a.id is None]:
+            self.add_asset(a)
 
     def load_asset(self, asset_id):
         return self.fetch_one(
@@ -151,22 +166,88 @@ class ProjectDatabase(Database):
             'SELECT id, name, type, thumbnail FROM assets;'
         )
 
+    def db_tup_from_stage_asset(self, stage_asset, stage_id):
+        return (
+            stage_asset.id,
+            stage_asset.asset.id,
+            stage_id,
+            stage_asset.x,
+            stage_asset.y,
+            stage_asset.z
+        )
+
+    def add_stage_asset(self, stage_asset, stage_id):
+        self.execute(
+            'REPLACE INTO stage_assets (id, asset, stage, x, y, z) '
+            'VALUES (?, ?, ?, ?, ?, ?);',
+            self.db_tup_from_stage_asset(stage_asset, stage_id)
+        )
+
+        if stage_asset.id is None:
+            stage_asset.id = self.fetch_single(
+                'SELECT last_insert_rowid() FROM stage_assets;'
+            )
+
+    def db_tup_from_stage(self, stage, index):
+        return (
+            stage.id,
+            stage.name,
+            index,
+            stage.description,
+            stage.width,
+            stage.height,
+            stage.tile_size,
+            stage.notes_json
+        )
+
+    def add_stage(self, stage, index):
+        """Insert a stage to the db, setting its id if unset."""
+
+        self.execute(
+            'REPLACE INTO stages('
+                'id, name, index, description, width, height, tile_size, notes'
+            ') VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+            self.db_tup_from_stage(stage, index)
+        )
+
+        if stage.id is None:
+            stage.id = self.fetch_one('SELECT last_insert_rowid() FROM stages;')
+
     def add_stages(self, stages):
+        batch = []
+        indiv = []
+
+        for i, s in enumerate(stages):
+            if s.id is None:
+                indiv.append((s, i))
+            else:
+                batch.append(self.db_tup_from_stage(s, i))
+
         self.execute_many(
             'REPLACE INTO stages('
                 'id, name, index, description, width, height, tile_size, notes'
             ') VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
-            [(
-                s.id,
-                s.name,
-                i,
-                s.description,
-                s.width,
-                s.height,
-                s.tile_size,
-                s.notes_json
-            ) for i, s in enumerate(stages)]
+            batch
         )
+        for tup in indiv:
+            self.add_stage(*tup)
+
+        batch = []
+        indiv = []
+        for s in stages:
+            for a in s:
+                if a.id is None:
+                    indiv.append((a, s.id))
+                else:
+                    batch.append(self.db_tup_from_stage_asset(a, s.id))
+
+        self.execute_many(
+            'REPLACE INTO stage_assets (id, asset, stage, x, y, z) '
+            'VALUES (?, ?, ?, ?, ?, ?);',
+            batch
+        )
+        for tup in indiv:
+            self.add_stage_asset(*tup)
 
     def add_meta(self, entries):
         self.execute_many(
@@ -203,7 +284,8 @@ class ArchiveDatabase(Database):
         self.startup_commands.append(
             'CREATE TABLE IF NOT EXISTS projects ('
                 'path TEXT COLLATE NOCASE PRIMARY KEY, '
-                'name TEXT'
+                'name TEXT, '
+                'description TEXT'
             ');'
         )
 
@@ -225,14 +307,24 @@ class ArchiveDatabase(Database):
             self.db_tup_from_asset(asset)
         )
 
+    def remove_assset(self, asset):
+        self.execute(
+            'DELETE FROM assets WHERE path = ?;',
+            asset.path
+        )
+
     def db_tup_from_project(self, project):
         return (
             project.path,
-            project.name
+            project.name,
+            project.description
         )
 
     def add_project(self, project):
         self.execute(
-            'REPLACE INTO projects(path, name) VALUES (?, ?);',
+            'REPLACE INTO projects(path, name, description) VALUES (?, ?, ?);',
             self.db_tup_from_project(project)
         )
+
+    def load_project_list(self):
+        return self.fetch_all('SELECT * FROM projects;')

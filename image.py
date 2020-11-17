@@ -8,12 +8,19 @@ import library
 import util
 
 # must be either 'pillow' or 'pygame'; currently 'pygame' is somewhat faster
+# if using pillow, pillow-simd is likely to offer better performance
 RENDERER = 'pygame' 
 
 class ImageWrapper():
     IMAGE_FORMAT = 'RGBA'
     BLOB_FORMAT = 'PNG'
     THUMBNAIL_SIZE = (128, 128)
+    FORMATS = [
+        'BMP',
+        'PNG',
+        'JPG',
+        'JPEG'
+    ]
 
     def __init__(self, **kwargs):
         size = kwargs.get('size', (0, 0))
@@ -211,8 +218,8 @@ class ImageAsset(library.Asset):
     @staticmethod
     def from_file(path):
         return ImageAsset(
-            Image.from_file(path),
-            name=util.asset_name_from_path(path)
+            name=util.asset_name_from_path(path),
+            image=Image.from_file(path)
         )
 
 if RENDERER == 'pygame':

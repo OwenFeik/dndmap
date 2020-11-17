@@ -127,7 +127,7 @@ class AssetLibrary():
     def add(self, asset):
         self.assets.append(asset)
 
-    def delete(self, asset):
+    def remove(self, asset):
         self.assets.remove(asset)
 
 class Stage(AssetLibrary):
@@ -154,12 +154,28 @@ class Stage(AssetLibrary):
     def notes_json(self):
         return json.dumps(self.notes)
 
+    def add(self, asset):
+        if not isinstance(asset, PositionedAsset):
+            asset = PositionedAsset(asset=asset)
+        super().add(asset)
+
 class ArchiveLibrary(AssetLibrary):
     """
     Library which stores a list of all of the assets ever used. Doesn't store
     the actual assets, but instead keeps track of their locations and offers a
     list of them.
     """
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    def add(self, asset):
+        super().add(asset)
+        self.db.add_asset(asset)
+
+    def remove(self, asset):
+        super().remove(asset)
+        self.db.remove_asset(asset)
 
 class ProjectProperties(enum.Enum):
     NAME = 1
@@ -171,11 +187,17 @@ class Project():
     """A collect of stages for a specific project."""
 
     def __init__(self, **kwargs):
+        # name of the project
         self.name = kwargs.get('name', 'untitled')
+        # where the project is saved
         self.path = kwargs.get('path', '')
+        # list of Stage objects in the project
         self.stages = kwargs.get('stages', [])
+        # the Stage currently being worked on
         self.active_stage = None
+        # assets used in the project; may be used in multiple stages
         self.assets = kwargs.get('assets', AssetLibrary())
+        # description of the project
         self.description = kwargs.get('description', '')
 
     def save(self):
@@ -196,3 +218,12 @@ class Project():
                 self.stages.index(self.active_stage)
             )
         ])
+
+    def add_asset(self, asset, insert=True):
+        self.assets.add(asset)
+        if insert and self.active_stage:
+            self.active_stage.add(asset)
+
+    @staticmethod
+    def load(path):
+        return Project(path=path)
