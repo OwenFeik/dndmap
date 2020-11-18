@@ -2,10 +2,9 @@ import json
 
 import asset_utils
 import gui_util
-import image
 
 class PositionedAsset(asset_utils.AssetWrapper):
-    """A wrapper which holds another asset, and it's position in a stage."""
+    """A wrapper which holds another asset, and its position in a stage."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -66,6 +65,10 @@ class MapImage(PositionedAsset):
     @property
     def h(self):
         return abs(self._h)
+
+    @property
+    def size(self):
+        return self.w, self.h
 
     @property
     def properties(self):
@@ -179,7 +182,7 @@ class MapImage(PositionedAsset):
 
     @staticmethod
     def from_file(path, **kwargs):
-        return MapImage(image.ImageAsset.from_file(path), **kwargs)
+        return MapImage(asset_utils.ImageAsset.from_file(path), **kwargs)
 
 
 class Stage(asset_utils.AssetLibrary):
@@ -213,19 +216,18 @@ class Stage(asset_utils.AssetLibrary):
     def add(self, asset):
         if type(asset) == MapImage:
             new = asset
-        elif type(asset) == image.ImageAsset:
+        elif type(asset) == asset_utils.ImageAsset:
             new = MapImage(asset)
-        elif type(asset) == image.Image:
-            new = MapImage(image.ImageAsset(image=asset))
-        elif type(asset) == str:
-            new = MapImage.from_file(asset)
         else:
-            raise ValueError(f'Not sure how to add {asset} to battlemap.')
+            raise ValueError(f'Can\'t add asset of type {type(asset)}')
 
         new.z = property(lambda: self.assets.index(new))
-        self.assets.insert(0, new)
+        self.assets.append(new)
 
     def remove(self, asset):
+        if asset is None:
+            return
+
         try:
             self.assets.remove(asset)
             asset.z = None
@@ -233,11 +235,17 @@ class Stage(asset_utils.AssetLibrary):
             pass
 
     def bring_to_front(self, asset):
+        if asset is None:
+            return
+
         if asset in self.assets:
             self.assets.remove(asset)
-        self.assets.insert(len(self.assets), asset)
+        self.assets.append(asset)
 
     def send_to_back(self, asset):
+        if asset is None:
+            return
+
         if asset in self.assets:
             self.assets.remove(asset)
         self.assets.insert(0, asset)

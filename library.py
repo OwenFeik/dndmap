@@ -1,10 +1,12 @@
 import enum
 import json
+import os
 import time
 
 import asset_utils
 import database
 import image
+import stage
 import util
 
 class ArchiveLibrary(asset_utils.AssetLibrary):
@@ -42,7 +44,7 @@ class Project():
         # list of Stage objects in the project
         self.stages = kwargs.get('stages', [])
         # the Stage currently being worked on
-        self.active_stage = None
+        self.active_stage = kwargs.get('active_stage', stage.Stage())
         # assets used in the project; may be used in multiple stages
         self.assets = kwargs.get('assets', asset_utils.AssetLibrary())
         # description of the project
@@ -69,7 +71,7 @@ class Project():
 
     def add_asset(self, asset, insert=True):
         self.assets.add(asset)
-        if insert and self.active_stage:
+        if insert and self.active_stage is not None:
             self.active_stage.add(asset)
 
     @staticmethod
@@ -83,27 +85,39 @@ class DataContext():
     persistence between sessions.
     """
 
+    CACHE_DIR = './cache/' if util.DEBUG else '~/.dndmap/cache/'
     ASSET_FORMATS = image.Image.FORMATS
-    CACHE_FILE = './cache/cache.json'
+    CACHE_FILE = CACHE_DIR + 'cache.json'
+    ARCHIVE_FILE = CACHE_DIR + 'archive.db'
 
     def __init__(self):
-        self.archive = database.ArchiveDatabase()
+        self.archive = database.ArchiveDatabase(DataContext.ARCHIVE_FILE)
+        self.archive.init()
         self.assets = ArchiveLibrary(self.archive)
+        self.set_up_fs()
         self.load_cache()
 
+    def set_up_fs(self):
+        if not os.path.exists(DataContext.CACHE_DIR):
+            os.mkdir(DataContext.CACHE_DIR)
+
     def load_cache(self):
-        with open(DataContext.CACHE_FILE, 'r') as f:
-            cache = json.load(f)
-        self.active_file = cache.get('active_project')
-        self.project = Project.load(self.active_file)
+        try:
+            with open(DataContext.CACHE_FILE, 'r') as f:
+                cache = json.load(f)
+            self.active_file = cache.get('active_project')
+            self.project = Project.load(self.active_file)
+        except FileNotFoundError:
+            self.active_file = ''
+            self.project = Project()
         self.project_list = self.archive.load_project_list()
 
     def load_asset(self, path):
-        ext = util.get_file_extension(path)
-        if not ext in DataContext.ASSET_FORMATS:
-            raise ValueError(f'Can\'t load "{ext}" files.')
-
-        asset = image.ImageAsset.from_file(ext)
+        asset = asset_utils.load_asset(path)
 
         self.project.add_asset(asset)
         self.assets.add(asset)
+
+    def exit(self):
+        self.archive.commit()
+        self.archive.close()

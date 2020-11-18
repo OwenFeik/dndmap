@@ -17,7 +17,7 @@ class BattleMap():
 
         self.image = None
         self.grid_image = None
-        self.grid_line_width = 2
+        self.grid_line_width = 1
         self.render_grid()
         self.redraw = True
 
@@ -42,9 +42,11 @@ class BattleMap():
     def snap_to_grid(self, map_image):
         img = map_image.base_image
         row, col = grid_det.calc_grid_size(img.as_greyscale_array())
-        w = img.w // row * self.stage.tile_size
-        h = img.h // col * self.stage.tile_size
-        map_image.set_size(w, h)
+        
+        map_image.set_size(
+            int(map_image.w * (self.stage.tile_size / row)),
+            int(map_image.h * (self.stage.tile_size / col))
+        )
         self.redraw = True
 
     def render_grid(self):
@@ -56,6 +58,7 @@ class BattleMap():
             bg_colour=gui_util.Colours.CLEAR
         )
 
+        # add 2 to allow for cropping of grid to viewport
         for i in range(0, self.vp_h // self.stage.tile_size + 2):
             y = i * self.stage.tile_size
             grid.draw_line(

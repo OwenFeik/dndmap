@@ -3,3 +3,5 @@ __*
 *.jpeg
 *.png
 *.bmp
+*.db
+*.json

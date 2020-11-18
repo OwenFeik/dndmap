@@ -15,16 +15,13 @@ class Database():
         ]
 
     def init(self):
-        self.migrate()
         self.conn = sqlite3.connect(self.file)
+        self.migrate()
         for c in self.startup_commands:
             self.execute(c)
 
     def migrate(self):
-        curs = self.conn.cursor()
-        curs.execute('PRAGMA user_version;')
-        from_version = curs.fetchone()
-
+        from_version = self.fetch_single('PRAGMA user_version;')
         if from_version != self.VERSION:
             raise ValueError('Wrong database version!')
 
@@ -278,11 +275,10 @@ class ArchiveDatabase(Database):
     than an asset store.
     """
 
-    ARCHIVE_FILE = './cache/archive.db'
     VERSION = 0
 
-    def __init__(self):
-        super().__init__(ArchiveDatabase.ARCHIVE_FILE)
+    def __init__(self, file):
+        super().__init__(file)
 
         self.startup_commands.append(
             'CREATE TABLE IF NOT EXISTS assets ('
@@ -304,11 +300,11 @@ class ArchiveDatabase(Database):
 
     def db_tup_from_asset(self, asset):
         return (
-            asset.path.
+            asset.path,
             asset.name,
-            asset.type,
+            asset.type.value,
             asset.properties,
-            asset.thumbnail,
+            asset.thumbnail.as_bytes(),
             asset.description
         )
 

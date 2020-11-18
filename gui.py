@@ -1,25 +1,40 @@
 import threading
 import time
 import tkinter as tk
+import tkinter.filedialog
+import tkinter.messagebox
 
 import battlemap
-
 import gui_util
+import library
 
 root = tk.Tk()
 running = True
+context = library.DataContext()
 
 class BattleMapContextMenu(tk.Menu):
     def __init__(self, master):
         super().__init__(master, tearoff=0)
         self.bm = master.bm
 
-        self.add_command(
-            label="Add image"
-        )
+        self.add_command(label="Add image", command=self.add_asset)
 
     def show(self, e):
         self.tk_popup(e.x_root, e.y_root, 0)
+
+    def add_asset(self):
+        try:
+            context.load_asset(
+                tkinter.filedialog.askopenfilename(
+                    filetypes=[(
+                        'Image files',
+                        ' '.join([f'*.{ext.lower()}' for ext in \
+                            library.DataContext.ASSET_FORMATS])
+                    )]
+                )
+            )
+        except ValueError:
+            tkinter.messagebox.showerror('Error', 'Failed to load image.')
 
 class BattleMapImageContextMenu(BattleMapContextMenu):
     def __init__(self, master):
@@ -30,8 +45,7 @@ class BattleMapImageContextMenu(BattleMapContextMenu):
         self.insert_command(
             0,
             label="Delete",
-            command=lambda: self.bm.remove_image(self.target) \
-                if self.target else None
+            command=lambda: context.project.active_stage.remove(self.target)
         )
         self.insert_command(
             0,
@@ -41,14 +55,14 @@ class BattleMapImageContextMenu(BattleMapContextMenu):
         self.insert_command(
             0,
             label="Bring to front",
-            command=lambda: self.bm.bring_to_front(self.target) \
-                if self.target else None
+            command=lambda: \
+                context.project.active_stage.bring_to_front(self.target)
         )
         self.insert_command(
             0,
             label="Send to back",
-            command=lambda: self.bm.send_to_back(self.target) \
-                if self.target else None
+            command=lambda: \
+                context.project.active_stage.send_to_back(self.target)
         )
 
     def show_on_image(self, e, img):
@@ -62,22 +76,18 @@ class BattleMapImageContextMenu(BattleMapContextMenu):
         try:
             self.bm.snap_to_grid(self.target)
         except ValueError:
-            tk.messagebox.showerror(
+            tkinter.messagebox.showerror(
                 'Error',
                 'Failed to detect grid size of this image.'
             )
 
-
 class BattleMapLabel(tk.Frame):
     FRAME_RATE_TARGET = 60
+    IDLE_FRAME_RATE = 10
 
-    def __init__(self, master=None, **kwargs):
+    def __init__(self, master=None):
         super().__init__(master)
-        self.bm = battlemap.BattleMap(**kwargs)
-
-        # test images
-        self.bm.stage.add('map.jpg')
-        self.bm.stage.add('map2.jpg')
+        self.bm = battlemap.BattleMap(stage=context.project.active_stage)
 
         self.bm.render()
 
@@ -117,21 +127,24 @@ class BattleMapLabel(tk.Frame):
 
     def refresh_image(self):
         prev_frame = time.time_ns()
-        frame_time = 1e9 / self.FRAME_RATE_TARGET # in ns, hence 1e9
+        frame_time_min = 1e9 / self.FRAME_RATE_TARGET # in ns, hence 1e9
+        frame_time_max = 1e9 / self.IDLE_FRAME_RATE
 
         while self.rendering:
-            if self.bm.redraw:
+            if self.bm.redraw or \
+                time.time_ns() > (prev_frame + frame_time_max):
+                
                 self.bm.render()
 
                 _old_image = self.image # need to stop from being eaten by gc
                 self.image = self.bm.get_photo_image()
                 self.label.configure(image=self.image)
                 
-                prev_frame = time.time_ns()
                 root.update_idletasks()
+                prev_frame = time.time_ns()
             
-            delta_t = time.time_ns() - prev_frame 
-            if delta_t < frame_time:
+            delta_t = time.time_ns() - (prev_frame + frame_time_min) 
+            if delta_t > 0:
                 time.sleep(delta_t / 1e9)
 
     def start_render_thread(self):
@@ -159,10 +172,21 @@ class Application(tk.Frame):
             command=self.master.destroy)
         self.quit.pack(side='bottom')
 
-gui_util.init_cursor_manager(root)
-root.bind('<Key>', gui_util.handle_key_down)
-root.bind('<KeyRelease>', gui_util.handle_key_up)
-root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
+    def destroy(self):
+        context.exit()
+
+def configure_root():
+    gui_util.init_cursor_manager(root)
+    root.bind('<Key>', gui_util.handle_key_down)
+    root.bind('<KeyRelease>', gui_util.handle_key_up)
+    root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
+
+context.load_asset('map.jpg')
+context.load_asset('map2.jpg')
+
+configure_root()
 app = Application(root)
+
+app.image.bm.redraw = True
 
 app.mainloop()

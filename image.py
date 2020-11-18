@@ -3,9 +3,7 @@ import numpy as np
 
 import PIL.Image, PIL.ImageTk
 
-import asset_utils
 import gui_util
-import util
 
 # must be either 'pillow' or 'pygame'; currently 'pygame' is somewhat faster
 # if using pillow, pillow-simd is likely to offer better performance
@@ -67,7 +65,7 @@ class ImageWrapper():
 
     def as_thumbnail(self):
         """get a thumbnail of this image, to save in db or similar"""
-        return self.resize(*self.THUMBNAIL_SIZE)
+        return self.resize(Image.THUMBNAIL_SIZE)
 
     def as_bytes(self):
         """convert this image to a byte array"""
@@ -186,41 +184,6 @@ class PillowImage(ImageWrapper):
     def from_file(path):
         image = PIL.Image.open(path).convert(Image.IMAGE_FORMAT)
         return PillowImage(size=image.size, image=image)
-
-class ImageAsset(asset_utils.Asset):
-    """An image, like a map or a token."""
-
-    def __init__(self, **kwargs):
-        kwargs['asset_type'] = asset_utils.AssetType.IMAGE
-        super().__init__(**kwargs)
-        self.image = kwargs.get('image', Image())
-    
-    @property
-    def size(self):
-        return self.image.size
-
-    @property
-    def properties(self):
-        return '{' + f'w: {self.image.w}, h: {self.image.h}' + '}'
-
-    @property
-    def thumbnail(self):
-        return self.image.as_thumbnail()
-
-    def get_data(self):
-        """blob of this image and hash thereof"""
-        blob = self.image.as_bytes()
-        return blob, hash(blob)
-
-    def save(self, path):
-        pass
-
-    @staticmethod
-    def from_file(path):
-        return ImageAsset(
-            name=util.asset_name_from_path(path),
-            image=Image.from_file(path)
-        )
 
 if RENDERER == 'pygame':
     import contextlib
