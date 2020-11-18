@@ -72,10 +72,20 @@ class ImageWrapper():
         blob = io.BytesIO()
         self.get_pillow_image().save(blob, format=Image.BLOB_FORMAT)
         return blob.getvalue()
+    
+    @staticmethod
+    def load(filelike):
+        """load the given filelike"""
 
     @staticmethod
     def from_file(path):
-        """return an ImageWrapper with image loaded from path"""
+        """return an Image with image loaded from path"""
+        return Image.load(open(path, 'rb'))
+
+    @staticmethod
+    def from_bytes(data):
+        """read provided bytes (data) as an Image"""
+        return Image.load(io.BytesIO(data))
 
 class PygameImage(ImageWrapper):
     def __init__(self, **kwargs):
@@ -127,8 +137,8 @@ class PygameImage(ImageWrapper):
         return PygameImage(size=new_size, image=new_img)
 
     @staticmethod
-    def from_file(path):
-        image = pygame.image.load(path)
+    def load(filelike):
+        image = pygame.image.load(filelike)
         return PygameImage(size=image.get_size(), image=image)
     
 class PillowImage(ImageWrapper):
@@ -181,8 +191,8 @@ class PillowImage(ImageWrapper):
         return PillowImage(size=new_size, image=new_img)
 
     @staticmethod
-    def from_file(path):
-        image = PIL.Image.open(path).convert(Image.IMAGE_FORMAT)
+    def load(filelike):
+        image = PIL.Image.open(filelike).convert(Image.IMAGE_FORMAT)
         return PillowImage(size=image.size, image=image)
 
 if RENDERER == 'pygame':

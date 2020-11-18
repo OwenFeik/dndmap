@@ -84,7 +84,15 @@ class Project():
 
     @staticmethod
     def load(path):
-        return Project(path=path)
+        if not os.path.isfile(path):
+            raise FileNotFoundError('Couldn\'t find the specified save file.')
+
+        db = database.ProjectDatabase(path)
+        db.init()
+        assets = [asset_utils.build_from_db_tup(tup, lazy=True) for tup in \
+            db.load_asset_list()]
+
+        # TODO finish
 
 class DataContext():
     """

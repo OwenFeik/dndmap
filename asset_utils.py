@@ -42,6 +42,15 @@ class Asset():
     def save(self, path):
         """Save the asset at the location specified by path."""
 
+    def get_dict(self):
+        return {
+            'id': self.id,
+            'path': self.path,
+            'name': self.name,
+            'description': self.description,
+            'asset_type': self.type
+        }
+
 class TokenAsset(Asset):
     """A token like a player or monster image."""
 
@@ -72,7 +81,7 @@ class AssetWrapper(Asset):
     def asset(self):
         return self._asset
 
-class PreviewAsset(AssetWrapper):
+class AssetPreview(AssetWrapper):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._thumbnail = kwargs.get('thumbnail', image.Image())
@@ -80,6 +89,23 @@ class PreviewAsset(AssetWrapper):
     @property
     def thumbnail(self):
         return self._thumbnail
+
+class LazyAsset(AssetPreview):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.db = kwargs.get('db')
+
+        # a lazy asset needs to be able to load its asset by id
+        assert self.id is not None
+
+    @property
+    def asset(self):
+        self.load_asset()
+        return self._asset
+
+    def load_asset(self):
+        if self._asset is None:
+            self._asset = build_from_db_tup(self.db.load_asset(self.id))
 
 class AssetLibrary():
     """A collection of assets."""
@@ -139,6 +165,9 @@ class ImageAsset(Asset):
     def save(self, path):
         pass
 
+    def get_dict(self):
+        return super().get_dict().update({'image': self.image})
+
     @staticmethod
     def from_file(path):
         return ImageAsset(
@@ -152,3 +181,33 @@ def load_asset(path):
         return ImageAsset.from_file(path)
 
     raise ValueError(f'Not sure how to open {path}')
+
+def build_from_db_tup(tup, lazy=False):
+    if lazy:
+        asset_id, name, asset_type, thumbnail = tup
+    else:
+        asset_id, name, asset_type, properties, thumbnail, description, data, \
+            _asset_hash = tup
+        properties = json.loads(properties)
+
+    asset_type = AssetType(asset_type)
+
+    if lazy:
+        return LazyAsset(
+            id=asset_id,
+            name=name,
+            asset_type=asset_type,
+            thumbnail=thumbnail
+        )
+    elif asset_type == AssetType.IMAGE:
+        return ImageAsset(
+            id=asset_id,
+            name=name,
+            asset_type=asset_type,
+            properties=properties,
+            thumbnail=thumbnail,
+            description=description,
+            image=image.Image.from_bytes(data)
+        )
+    
+    raise ValueError(f'I couldn\'t build an asset from the data {tup}')
