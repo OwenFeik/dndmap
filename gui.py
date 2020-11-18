@@ -17,7 +17,7 @@ class BattleMapContextMenu(tk.Menu):
         super().__init__(master, tearoff=0)
         self.bm = master.bm
 
-        self.add_command(label="Add image", command=self.add_asset)
+        self.add_command(label='Add image', command=self.add_asset)
 
     def show(self, e):
         self.tk_popup(e.x_root, e.y_root, 0)
@@ -84,6 +84,7 @@ class BattleMapImageContextMenu(BattleMapContextMenu):
 class BattleMapLabel(tk.Frame):
     FRAME_RATE_TARGET = 60
     IDLE_FRAME_RATE = 10
+    BORDER_THICKNESS = 10
 
     def __init__(self, master=None):
         super().__init__(master)
@@ -102,10 +103,18 @@ class BattleMapLabel(tk.Frame):
         self.rendering = True
         self.start_render_thread()
 
+        self.pack(fill="both", expand=True)
+
     def create_image(self):
         self.image = self.bm.get_photo_image()
-        self.label = tk.Label(self, image=self.image)
-        self.label.pack()
+        self.label = tk.Label(
+            self,
+            image=self.image,
+            highlightthickness=BattleMapLabel.BORDER_THICKNESS,
+            relief="solid",
+            highlightbackground=gui_util.get_hex_colour(gui_util.BG_COLOUR)
+        )
+        self.label.pack(fill="both", expand=True)
 
     def show_context_menu(self, e):
         img = self.bm.handle_mouse_down(e)
@@ -120,7 +129,15 @@ class BattleMapLabel(tk.Frame):
         self.label.bind('<MouseWheel>', self.bm.handle_mouse_scroll)
         self.label.bind('<Motion>', self.bm.handle_mouse_motion)
         self.label.bind('<Button-3>', self.show_context_menu)
+        self.label.bind('<Configure>', self.resize)
 
+    def resize(self, e):
+        self.label.config(width=e.width, height=e.height)
+        self.bm.set_vp_size((
+            e.width - 2 * BattleMapLabel.BORDER_THICKNESS,
+            e.height - 2 * BattleMapLabel.BORDER_THICKNESS
+        ))
+        
     def destroy(self):
         self.rendering = False
         super().destroy()
@@ -152,28 +169,43 @@ class BattleMapLabel(tk.Frame):
         render_thread.setDaemon(True)
         render_thread.start()
 
+class TitleBarMenu(tk.Menu):
+    def __init__(self, master):
+        super().__init__(master)
+        root.config(menu=self)
+
+        filemenu = tk.Menu(self, tearoff=0)
+        filemenu.add_command(label='Save', command=self.save_project)
+        filemenu.add_command(label='Quit', command=root.destroy)
+
+        self.add_cascade(label='File', menu=filemenu)
+
+    def save_project(self):
+        try:
+            context.save_project()
+            return
+        except ValueError:
+            pass
+
+        path = tkinter.filedialog.asksaveasfilename(
+            defaultextension=library.Project.FILE_FORMAT,
+            initialfile='myproject' + library.Project.FILE_FORMAT,
+            initialdir=library.Project.SAVE_DIR
+        )
+        context.save_project(path)
+
 class Application(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.master = master
         self.pack()
-        self.create_widgets()
-
-    def create_widgets(self):
-        self.hi_there = tk.Button(self)
-        self.hi_there['text'] = 'Hello World\n(click me)'
-        self.hi_there['command'] = lambda: print(gui_util.get_shift_down())
-        self.hi_there.pack(side='top')
-
+        self.menu = TitleBarMenu(self)
         self.image = BattleMapLabel(self)
         self.image.pack(side='bottom')
 
-        self.quit = tk.Button(self, text='Exit', fg='red', 
-            command=self.master.destroy)
-        self.quit.pack(side='bottom')
-
     def destroy(self):
         context.exit()
+        super().destroy()
 
 def configure_root():
     gui_util.init_cursor_manager(root)

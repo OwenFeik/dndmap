@@ -35,16 +35,20 @@ class ProjectProperties(enum.Enum):
 
 class Project():
     """A collect of stages for a specific project."""
+    # TODO; needs a way to prune unused assets
+
+    FILE_FORMAT = '.ddmproj'
+    SAVE_DIR = './saves/' if util.DEBUG else '~/.dndmap/saves/'
 
     def __init__(self, **kwargs):
         # name of the project
         self.name = kwargs.get('name', 'untitled')
         # where the project is saved
         self.path = kwargs.get('path', '')
-        # list of Stage objects in the project
-        self.stages = kwargs.get('stages', [])
         # the Stage currently being worked on
         self.active_stage = kwargs.get('active_stage', stage.Stage())
+        # list of Stage objects in the project
+        self.stages = kwargs.get('stages', [self.active_stage])
         # assets used in the project; may be used in multiple stages
         self.assets = kwargs.get('assets', asset_utils.AssetLibrary())
         # description of the project
@@ -56,18 +60,22 @@ class Project():
     def export(self, path):
         """Save all of the assets in this project to a file."""
 
+        self.path = path
         db = database.ProjectDatabase(path)
+        db.init()
         db.add_assets(self.assets)
         db.add_stages(self.stages)
         db.add_meta([
-            (ProjectProperties.NAME, self.name),
-            (ProjectProperties.DESCRIPTION, self.description),
-            (ProjectProperties.LAST_EDITED, str(time.time())),
+            (ProjectProperties.NAME.value, self.name),
+            (ProjectProperties.DESCRIPTION.value, self.description),
+            (ProjectProperties.LAST_EDITED.value, str(time.time())),
             (
-                ProjectProperties.ACTIVE_STAGE,
+                ProjectProperties.ACTIVE_STAGE.value,
                 self.stages.index(self.active_stage)
             )
         ])
+        db.commit()
+        db.close()
 
     def add_asset(self, asset, insert=True):
         self.assets.add(asset)
@@ -94,23 +102,29 @@ class DataContext():
         self.archive = database.ArchiveDatabase(DataContext.ARCHIVE_FILE)
         self.archive.init()
         self.assets = ArchiveLibrary(self.archive)
-        self.set_up_fs()
+        self.ensure_fs()
         self.load_cache()
 
-    def set_up_fs(self):
-        if not os.path.exists(DataContext.CACHE_DIR):
-            os.mkdir(DataContext.CACHE_DIR)
+    def ensure_fs(self):
+        for path in [DataContext.CACHE_DIR, Project.SAVE_DIR]:
+            if not os.path.exists(path):
+                os.mkdir(path)
 
     def load_cache(self):
         try:
             with open(DataContext.CACHE_FILE, 'r') as f:
                 cache = json.load(f)
-            self.active_file = cache.get('active_project')
-            self.project = Project.load(self.active_file)
+            self.project = Project.load(cache.get('active_project'))
         except FileNotFoundError:
-            self.active_file = ''
             self.project = Project()
         self.project_list = self.archive.load_project_list()
+
+    def save_cache(self):
+        self.ensure_fs()
+        with open(DataContext.CACHE_FILE, 'w') as f:
+            json.dump({
+                'active_project': self.project.path
+            }, f)
 
     def load_asset(self, path):
         asset = asset_utils.load_asset(path)
@@ -118,6 +132,17 @@ class DataContext():
         self.project.add_asset(asset)
         self.assets.add(asset)
 
+    def save_project(self, path=None):
+        if path is None and self.project.path is None:
+            raise ValueError('Can\'t save project without path')
+        elif path:
+            self.project.export(path)
+        else:        
+            self.project.save()
+
+        self.archive.add_project(self.project)
+
     def exit(self):
+        self.save_cache()
         self.archive.commit()
         self.archive.close()

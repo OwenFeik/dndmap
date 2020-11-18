@@ -14,6 +14,3 @@ while True:
         print(string)
     conn.close()
     print('disconnected')
-        
-
-'58.96.73.113'

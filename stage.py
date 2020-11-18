@@ -10,7 +10,7 @@ class PositionedAsset(asset_utils.AssetWrapper):
         super().__init__(**kwargs)
         self._x = kwargs.get('x', 0)
         self._y = kwargs.get('y', 0)
-        self.z = kwargs.get('z', 0)
+        self._z = kwargs.get('z', 0)
 
     @property
     def x(self):
@@ -19,6 +19,14 @@ class PositionedAsset(asset_utils.AssetWrapper):
     @property
     def y(self):
         return self._y
+
+    @property
+    def z(self):
+        return self.get_z()
+
+    # this gets overridden if the asset is put into a stage.
+    def get_z(self):
+        return self._z
 
 class MapImage(PositionedAsset):
     GRAB_MARGIN = 10
@@ -100,6 +108,8 @@ class MapImage(PositionedAsset):
         self.apply_transform()
 
     def apply_transform(self, fast=False):
+        _old_image = self.image
+
         flip_x = (self._w < 0) ^ self.flipped_x
         flip_y = (self._h < 0) ^ self.flipped_y
 
@@ -221,7 +231,7 @@ class Stage(asset_utils.AssetLibrary):
         else:
             raise ValueError(f'Can\'t add asset of type {type(asset)}')
 
-        new.z = property(lambda: self.assets.index(new))
+        new.get_z = lambda: self.assets.index(new)
         self.assets.append(new)
 
     def remove(self, asset):
@@ -230,7 +240,7 @@ class Stage(asset_utils.AssetLibrary):
 
         try:
             self.assets.remove(asset)
-            asset.z = None
+            asset.get_z = lambda: None
         except ValueError:
             pass
 

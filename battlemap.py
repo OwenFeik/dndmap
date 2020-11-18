@@ -4,7 +4,8 @@ import image
 import stage
 
 class BattleMap():
-    SCROLL_SPEED_COEFF = 0.2 
+    SCROLL_SPEED_COEFF = 0.2
+    SCROLL_DELTA_DEFAULT = 120 
     ZOOM_SPEED_COEFF = 0.001
     ZOOM_MAX = 1.5
     ZOOM_MIN = 0.1
@@ -35,6 +36,11 @@ class BattleMap():
     @property
     def vp_size(self):
         return self.vp_w, self.vp_h
+
+    def set_vp_size(self, new_size):
+        self.vp_base_w, self.vp_base_h = new_size
+        self.render_grid()
+        self.redraw = True
 
     def get_photo_image(self):
         return self.image.get_imagetk()
@@ -132,7 +138,8 @@ class BattleMap():
 
     def handle_mouse_scroll(self, event):
         if event.num != '??':
-            delta = -120 if event.num == 4 else 120
+            delta = -BattleMap.SCROLL_DELTA_DEFAULT if event.num == 4 else \
+                BattleMap.SCROLL_DELTA_DEFAULT
         else:
             delta = -event.delta
 

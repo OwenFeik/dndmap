@@ -71,7 +71,7 @@ class ProjectDatabase(Database):
         super().__init__(file)
 
         self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS assets ('
+            'CREATE TABLE IF NOT EXISTS assets('
                 'id INTEGER PRIMARY KEY, '
                 'name TEXT, '
                 'type INTEGER, '
@@ -83,10 +83,10 @@ class ProjectDatabase(Database):
             ');'    
         )
         self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS stages ('
+            'CREATE TABLE IF NOT EXISTS stages('
                 'id INTEGER PRIMARY KEY, '
-                'name TEXT UNIQUE, '
-                'index INTEGER UNIQUE, '
+                'name TEXT, '
+                'idx INTEGER NOT NULL UNIQUE, '
                 'description TEXT, '
                 'width INTEGER, '
                 'height INTEGER, '
@@ -96,20 +96,20 @@ class ProjectDatabase(Database):
             ');'
         )
         self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS stage_assets ('
+            'CREATE TABLE IF NOT EXISTS stage_assets('
                 'id INTEGER PRIMARY KEY, '
-                'asset INTEGER, ',
+                'asset INTEGER, '
                 'stage INTEGER, '
-                'x INTEGER, ',
-                'y INTEGER, ',
-                'z INTEGER, ',
+                'x INTEGER, '
+                'y INTEGER, '
+                'z INTEGER, '
                 'FOREIGN KEY(asset) REFERENCES assets(id), '
                 'FOREIGN KEY(stage) REFERENCES stages(id)'
             ');'
         )
         self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS meta ('
-                'key INTEGER PRIMARY KEY',
+            'CREATE TABLE IF NOT EXISTS meta('
+                'key INTEGER PRIMARY KEY, '
                 'value TEXT'
             ');'
         )
@@ -126,7 +126,7 @@ class ProjectDatabase(Database):
                 'REPLACE INTO stages('
                     'id, '
                     'name, '
-                    'index, '
+                    'idx, '
                     'description, '
                     'width, '
                     'height, '
@@ -141,9 +141,9 @@ class ProjectDatabase(Database):
         return (
             asset.id,
             asset.name,
-            asset.type,
+            asset.type.value,
             asset.properties,
-            asset.thumbnail,
+            asset.thumbnail.as_bytes(),
             blob,
             blob_hash
         )
@@ -226,7 +226,9 @@ class ProjectDatabase(Database):
         )
 
         if stage.id is None:
-            stage.id = self.fetch_one('SELECT last_insert_rowid() FROM stages;')
+            stage.id = self.fetch_single(
+                'SELECT last_insert_rowid() FROM stages;'
+            )
 
     def add_stages(self, stages):
         batch = []
@@ -281,7 +283,7 @@ class ArchiveDatabase(Database):
         super().__init__(file)
 
         self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS assets ('
+            'CREATE TABLE IF NOT EXISTS assets('
                 'path TEXT COLLATE NOCASE PRIMARY KEY, '
                 'name TEXT, '
                 'type INTEGER, '
@@ -291,7 +293,7 @@ class ArchiveDatabase(Database):
             ');'
         )
         self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS projects ('
+            'CREATE TABLE IF NOT EXISTS projects('
                 'path TEXT COLLATE NOCASE PRIMARY KEY, '
                 'name TEXT, '
                 'description TEXT'
