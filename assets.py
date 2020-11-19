@@ -84,21 +84,55 @@ class AssetWrapper(Asset):
 class AssetPreview(AssetWrapper):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._thumbnail = kwargs.get('thumbnail', image.Image())
+        thumbnail = kwargs.get('thumbnail', image.Image())
+        if type(thumbnail) == bytes:
+            self._thumbnail = image.Image.from_bytes(thumbnail)
+        elif type(thumbnail) == image.Image:
+            self._thumbnail = thumbnail
+        else:
+            raise TypeError('Inappropriate type passed for thumbnail.')
 
     @property
     def thumbnail(self):
         return self._thumbnail
 
 class LazyAsset(AssetPreview):
-    """A lazy asset previews an asset and provides a way to load it later."""
+    """A lazy asset pretends to be an asset and loads it when required."""
+
+    NO_LOAD_ATTRS = [
+        '_asset',
+        '_init_done',
+        '_thumbnail',
+        'asset',
+        'asset_type',
+        'id',
+        'load_asset',
+        'loader',
+        'thumbnail'
+    ]
 
     def __init__(self, **kwargs):
+        self._init_done = False
+
         super().__init__(**kwargs)
-        self.db = kwargs.get('db')
+        self.loader = kwargs.get('loader')
 
         # a lazy asset needs to be able to load its asset by id
         assert self.id is not None
+
+        self._init_done = True
+
+    def __getattribute__(self, name):
+        if not name in LazyAsset.NO_LOAD_ATTRS and self._init_done:
+            self.load_asset()
+            return object.__getattribute__(self._asset, name)
+        return object.__getattribute__(self, name)
+
+    def __setattr__(self, name, value):
+        if not name in LazyAsset.NO_LOAD_ATTRS and self._init_done:
+            self.load_asset()
+            object.__setattr__(self._asset, name, value)
+        object.__setattr__(self, name, value)
 
     @property
     def asset(self):
@@ -107,14 +141,18 @@ class LazyAsset(AssetPreview):
 
     def load_asset(self):
         if self._asset is None:
-            self._asset = build_from_db_tup(self.db.load_asset(self.id))
+            self._asset = build_from_db_tup(self.loader(self.id))
 
 class AssetLibrary():
     """A collection of assets."""
 
-    def __init__(self):
+    def __init__(self, asset_list=None):
         self.assets = []
         self._i = None
+
+        if asset_list is not None:
+            for a in asset_list:
+                self.add(a)
 
     def __len__(self):
         return len(self.assets)
@@ -137,9 +175,9 @@ class AssetLibrary():
         self.assets.remove(asset)
 
 class AssetMapping(AssetLibrary):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, asset_list=None):
         self.mapping = {}
+        super().__init__(asset_list)
 
     def add(self, asset):
         super().add(asset)
@@ -170,7 +208,7 @@ class ImageAsset(Asset):
 
     @property
     def properties(self):
-        return '{' + f'w: {self.image.w}, h: {self.image.h}' + '}'
+        return '{' + f'"w": {self.image.w}, "h": {self.image.h}' + '}'
 
     @property
     def thumbnail(self):
@@ -204,7 +242,12 @@ def load_asset(path):
 
     raise ValueError(f'Not sure how to open {path}')
 
-def build_from_db_tup(tup, lazy=False):
+def build_from_db_tup(tup, lazy=False, loader=None):
+    """
+    Builds an asset from data drawn from the database. If lazy is true, the
+    asset will be a LazyAsset with loader function loader.
+    """
+
     if lazy:
         asset_id, name, asset_type, thumbnail = tup
     else:
@@ -219,7 +262,8 @@ def build_from_db_tup(tup, lazy=False):
             id=asset_id,
             name=name,
             asset_type=asset_type,
-            thumbnail=thumbnail
+            thumbnail=thumbnail,
+            loader=loader
         )
     elif asset_type == AssetType.IMAGE:
         return ImageAsset(

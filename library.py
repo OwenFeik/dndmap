@@ -3,13 +3,13 @@ import json
 import os
 import time
 
-import asset_utils
+import assets
 import database
 import image
 import stage
 import util
 
-class ArchiveLibrary(asset_utils.AssetLibrary):
+class ArchiveLibrary(assets.AssetLibrary):
     """
     Library which stores a list of all of the assets ever used. Doesn't store
     the actual assets, but instead keeps track of their locations and offers a
@@ -39,30 +39,39 @@ class Project():
 
     FILE_FORMAT = '.ddmproj'
     SAVE_DIR = './saves/' if util.DEBUG else '~/.dndmap/saves/'
+    LAZY_ASSETS = True
 
     def __init__(self, **kwargs):
         # name of the project
         self.name = kwargs.get('name', 'untitled')
         # where the project is saved
-        self.path = kwargs.get('path', '')
-        # the Stage currently being worked on
-        self.active_stage = kwargs.get('active_stage', stage.Stage())
+        self.path = kwargs.get('path', None)
+        
         # list of Stage objects in the project
-        self.stages = kwargs.get('stages', [self.active_stage])
+        self.stages = kwargs.get('stages')
+        if not self.stages:
+            self.stages = [stage.Stage()]
+        # the Stage currently being worked on
+        self.active_stage = kwargs.get('active_stage', self.stages[0])
+
         # assets used in the project; may be used in multiple stages
-        self.assets = kwargs.get('assets', asset_utils.AssetLibrary())
+        self.assets = kwargs.get('assets', assets.AssetLibrary())
         # description of the project
         self.description = kwargs.get('description', '')
+        # last time the project was saved to db
+        self.last_edited = kwargs.get('last_edited', None)
 
     def save(self):
+        if self.path is None:
+            raise ValueError('No file to save to.')
+
         self.export(self.path)
 
     def export(self, path):
         """Save all of the assets in this project to a file."""
 
         self.path = path
-        db = database.ProjectDatabase(path)
-        db.init()
+        db = database.ProjectDatabase(path).init()
         db.add_assets(self.assets)
         db.add_stages(self.stages)
         db.add_meta([
@@ -87,12 +96,56 @@ class Project():
         if not os.path.isfile(path):
             raise FileNotFoundError('Couldn\'t find the specified save file.')
 
-        db = database.ProjectDatabase(path)
-        db.init()
-        assets = [asset_utils.build_from_db_tup(tup, lazy=True) for tup in \
-            db.load_asset_list()]
+        kwargs = {'path': path}
 
-        # TODO finish
+        db = database.ProjectDatabase(path).init()
+
+        index_stage_pairs = \
+            [stage.Stage.from_db_tup(tup) for tup in db.load_stages()]
+        kwargs['stages'] = \
+            [s[1] for s in sorted(index_stage_pairs, key=lambda s: s[0])]
+
+        if Project.LAZY_ASSETS:
+            asset_mapping = assets.AssetMapping()
+
+            asset_list = [assets.build_from_db_tup(tup, lazy=True,
+                loader=db.load_asset) for tup in db.load_asset_list()] 
+            for a in asset_list:
+                asset_mapping.add(a)
+        
+            kwargs['assets'] = asset_mapping
+        else:
+            kwargs['assets'] = assets.AssetMapping([assets.build_from_db_tup( \
+                tup) for tup in db.load_assets()])
+
+        # For each stage asset, create a stage asset object with asset drawn
+        # from the project asset library. Store these in a dict mapping index
+        # to a list of assets associated with that stage, then add those
+        # elements to the relevant stage.
+        stage_assets_by_index = {}
+        for tup in db.load_stage_assets():
+            stage_asset_id, asset_id, stage_index, x, y, z = tup
+
+            stage_asset = stage.StageAsset(
+                kwargs['assets'].get_by_id(asset_id),
+                id=stage_asset_id,
+                x=x,
+                y=y,
+                z=z
+            )
+            if not stage_index in stage_assets_by_index:
+                stage_assets_by_index[stage_index] = []
+            stage_assets_by_index[stage_index].append(stage_asset)
+        for index in stage_assets_by_index:
+            kwargs['stages'][index].add_many(stage_assets_by_index[index])
+            
+        for key, value in db.load_meta():
+            kwargs[ProjectProperties(key).name.lower()] = \
+                int(value) if value.isnumeric() else value
+
+        kwargs['active_stage'] = kwargs['stages'][kwargs['active_stage']]
+
+        return Project(**kwargs)
 
 class DataContext():
     """
@@ -111,6 +164,8 @@ class DataContext():
         self.archive.init()
         self.assets = ArchiveLibrary(self.archive)
         self.ensure_fs()
+
+        self.project = None
         self.load_cache()
 
     def ensure_fs(self):
@@ -123,7 +178,7 @@ class DataContext():
             with open(DataContext.CACHE_FILE, 'r') as f:
                 cache = json.load(f)
             self.project = Project.load(cache.get('active_project'))
-        except FileNotFoundError:
+        except (FileNotFoundError, TypeError):
             self.project = Project()
         self.project_list = self.archive.load_project_list()
 
@@ -135,10 +190,13 @@ class DataContext():
             }, f)
 
     def load_asset(self, path):
-        asset = asset_utils.load_asset(path)
+        asset = assets.load_asset(path)
 
         self.project.add_asset(asset)
         self.assets.add(asset)
+
+    def load_project(self, path):
+        self.project = Project.load(path)
 
     def save_project(self, path=None):
         if path is None and self.project.path is None:

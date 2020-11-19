@@ -176,6 +176,8 @@ class TitleBarMenu(tk.Menu):
 
         filemenu = tk.Menu(self, tearoff=0)
         filemenu.add_command(label='Save', command=self.save_project)
+        filemenu.add_command(label='Open', command=self.open_project)
+        filemenu.add_separator()
         filemenu.add_command(label='Quit', command=root.destroy)
 
         self.add_cascade(label='File', menu=filemenu)
@@ -193,6 +195,25 @@ class TitleBarMenu(tk.Menu):
             initialdir=library.Project.SAVE_DIR
         )
         context.save_project(path)
+
+    def open_project(self):
+        if tkinter.messagebox.askyesno(
+            title='Save project?',
+            message='If you open a different project, unsaved work will be'
+                ' lost. Save now?'
+        ):
+            self.save_project()
+
+        path = tkinter.filedialog.askopenfilename(
+            filetypes=[(
+                'Project files',
+                f'*{library.Project.FILE_FORMAT}'
+            )],
+            initialdir=library.Project.SAVE_DIR
+        )
+
+        if path:
+            context.load_project(path)
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -212,9 +233,6 @@ def configure_root():
     root.bind('<Key>', gui_util.handle_key_down)
     root.bind('<KeyRelease>', gui_util.handle_key_up)
     root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
-
-context.load_asset('map.jpg')
-context.load_asset('map2.jpg')
 
 configure_root()
 app = Application(root)

@@ -20,6 +20,8 @@ class Database():
         for c in self.startup_commands:
             self.execute(c)
 
+        return self # useful for chaining
+
     def migrate(self):
         from_version = self.fetch_single('PRAGMA user_version;')
         if from_version != self.VERSION:
@@ -92,6 +94,7 @@ class ProjectDatabase(Database):
                 'height INTEGER, '
                 'tile_size INTEGER, '
                 'zoom_level FLOAT, '
+                'bg_colour INTEGER, '
                 'notes TEXT'
             ');'
         )
@@ -132,8 +135,9 @@ class ProjectDatabase(Database):
                     'height, '
                     'tile_size, '
                     'zoom_level, '
+                    'bg_colour, '
                     'notes'
-                ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);'
+                ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'
         }
 
     def db_tup_from_asset(self, asset):
@@ -177,6 +181,9 @@ class ProjectDatabase(Database):
             (asset_id,)
         )
 
+    def load_assets(self):
+        return self.fetch_all('SELECT * FROM assets;')
+
     def load_asset_list(self):
         return self.fetch_all(
             'SELECT id, name, type, thumbnail FROM assets;'
@@ -204,6 +211,15 @@ class ProjectDatabase(Database):
                 'SELECT last_insert_rowid() FROM stage_assets;'
             )
 
+    def load_stage_assets(self):
+        return self.fetch_all(
+            'SELECT stage_assets.id, asset, idx, x, y, z FROM stage_assets '
+            'INNER JOIN stages ON stages.id = stage_assets.stage;'
+        )
+
+    def purge_stage_assets(self):
+        self.execute('DELETE FROM stage_assets;')
+
     def db_tup_from_stage(self, stage, index):
         return (
             stage.id,
@@ -214,6 +230,7 @@ class ProjectDatabase(Database):
             stage.height,
             stage.tile_size,
             stage.zoom_level,
+            stage.get_bg_colour_int(),
             stage.notes_json
         )
 
@@ -244,6 +261,8 @@ class ProjectDatabase(Database):
         for tup in indiv:
             self.add_stage(*tup)
 
+        self.purge_stage_assets()
+
         batch = []
         indiv = []
         for s in stages:
@@ -260,6 +279,22 @@ class ProjectDatabase(Database):
         )
         for tup in indiv:
             self.add_stage_asset(*tup)
+
+    def load_stages(self):
+        return self.fetch_all(
+            'SELECT '
+                'id, '
+                'name, '
+                'idx, '
+                'description, '
+                'width, '
+                'height, '
+                'tile_size, '
+                'zoom_level, '
+                'bg_colour, '
+                'notes'
+            ' FROM stages;'
+        )
 
     def add_meta(self, entries):
         self.execute_many(

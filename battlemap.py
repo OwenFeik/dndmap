@@ -3,6 +3,8 @@ import grid_det
 import image
 import stage
 
+# TODO image flickering problem; more sever with more images
+
 class BattleMap():
     SCROLL_SPEED_COEFF = 0.2
     SCROLL_DELTA_DEFAULT = 120 

@@ -25,7 +25,7 @@ def encode_as_integer(rgba):
     return int('0x' + ''.join([hex(i)[2:] for i in rgba]), 16)
 
 def decode_to_colour(rgba_int):
-    string = hex(rgba_int)[2:]
+    string = hex(rgba_int)[2:].zfill(8)
     return tuple([int(string[i:i + 2], 16) for i in range(0, 8, 2)])
 
 class KeyHandler():

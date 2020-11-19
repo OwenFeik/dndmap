@@ -1,9 +1,9 @@
 import json
 
-import asset_utils
+import assets
 import gui_util
 
-class PositionedAsset(asset_utils.AssetWrapper):
+class PositionedAsset(assets.AssetWrapper):
     """A wrapper which holds another asset, and its position in a stage."""
 
     def __init__(self, **kwargs):
@@ -28,13 +28,15 @@ class PositionedAsset(asset_utils.AssetWrapper):
     def get_z(self):
         return self._z
 
-class MapImage(PositionedAsset):
+class StageAsset(PositionedAsset):
+    # TODO position is lost through a save-load cycle
+
     GRAB_MARGIN = 10
     MIN_HEIGHT = 32
     MIN_WIDTH = 32
 
     def __init__(self, img, **kwargs):
-        super().__init__(asset=img, asset_type=asset_utils.AssetType.IMAGE)
+        super().__init__(asset=img, asset_type=assets.AssetType.IMAGE)
         self.base_image = self.asset.image
 
         w, h = img.size
@@ -48,7 +50,7 @@ class MapImage(PositionedAsset):
         self.apply_transform()
 
     def __str__(self):
-        return f'<MapImage {self.image} at ({self.x}, {self.y}) flipped ' \
+        return f'<StageAsset {self.image} at ({self.x}, {self.y}) flipped ' \
             f'({self.flipped_x}, {self.flipped_y})>'
 
     def __repr__(self):
@@ -157,17 +159,17 @@ class MapImage(PositionedAsset):
         self.apply_transform(True)
         
     def touching(self, x, y):
-        in_range_y = \
-            -MapImage.GRAB_MARGIN < y - self.y < self.h + MapImage.GRAB_MARGIN
-        in_range_x = \
-            -MapImage.GRAB_MARGIN < x - self.x < self.w + MapImage.GRAB_MARGIN
+        in_range_y = -StageAsset.GRAB_MARGIN < y - self.y < \
+            self.h + StageAsset.GRAB_MARGIN
+        in_range_x = -StageAsset.GRAB_MARGIN < x - self.x < \
+            self.w + StageAsset.GRAB_MARGIN
 
-        touching_lft = abs(x - self.x) < MapImage.GRAB_MARGIN and in_range_y
-        touching_top = abs(y - self.y) < MapImage.GRAB_MARGIN and in_range_x
+        touching_lft = abs(x - self.x) < StageAsset.GRAB_MARGIN and in_range_y
+        touching_top = abs(y - self.y) < StageAsset.GRAB_MARGIN and in_range_x
         touching_rgt = \
-            abs(x - (self.x + self.w)) < MapImage.GRAB_MARGIN and in_range_y
+            abs(x - (self.x + self.w)) < StageAsset.GRAB_MARGIN and in_range_y
         touching_bot = \
-            abs(y - (self.y + self.h)) < MapImage.GRAB_MARGIN and in_range_x
+            abs(y - (self.y + self.h)) < StageAsset.GRAB_MARGIN and in_range_x
 
         if touching_lft and touching_top:
             return gui_util.DragPoints.TOPLEFT
@@ -192,10 +194,9 @@ class MapImage(PositionedAsset):
 
     @staticmethod
     def from_file(path, **kwargs):
-        return MapImage(asset_utils.ImageAsset.from_file(path), **kwargs)
+        return StageAsset(assets.ImageAsset.from_file(path), **kwargs)
 
-
-class Stage(asset_utils.AssetLibrary):
+class Stage(assets.AssetLibrary):
     """A collection of PositionedAssets."""
 
     DEFAULT_SIZE = (64, 64)
@@ -224,10 +225,10 @@ class Stage(asset_utils.AssetLibrary):
         return json.dumps(self.notes)
 
     def add(self, asset):
-        if type(asset) == MapImage:
+        if type(asset) == StageAsset:
             new = asset
-        elif type(asset) == asset_utils.ImageAsset:
-            new = MapImage(asset)
+        elif type(asset) == assets.ImageAsset:
+            new = StageAsset(asset)
         else:
             raise ValueError(f'Can\'t add asset of type {type(asset)}')
 
@@ -259,3 +260,30 @@ class Stage(asset_utils.AssetLibrary):
         if asset in self.assets:
             self.assets.remove(asset)
         self.assets.insert(0, asset)
+
+    def add_many(self, stage_assets):
+        for a in sorted(stage_assets, key=lambda a: a.z):
+            self.add(a)
+
+    def get_bg_colour_string(self):
+        return gui_util.get_hex_colour(self.bg_colour)
+    
+    def get_bg_colour_int(self):
+        return gui_util.encode_as_integer(self.bg_colour)
+
+    @staticmethod
+    def from_db_tup(tup):
+        stage_id, name, index, description, width, height, tile_size, \
+            zoom_level, bg_colour_int, notes = tup
+
+        return index, Stage(
+            id=stage_id,
+            name=name,
+            description=description,
+            width=width,
+            height=height,
+            tile_size=tile_size,
+            zoom_level=zoom_level,
+            bg_colour=gui_util.decode_to_colour(bg_colour_int),
+            notes=json.loads(notes)
+        )
