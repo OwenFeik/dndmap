@@ -91,6 +91,8 @@ class AssetPreview(AssetWrapper):
         return self._thumbnail
 
 class LazyAsset(AssetPreview):
+    """A lazy asset previews an asset and provides a way to load it later."""
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.db = kwargs.get('db')
@@ -133,6 +135,26 @@ class AssetLibrary():
 
     def remove(self, asset):
         self.assets.remove(asset)
+
+class AssetMapping(AssetLibrary):
+    def __init__(self):
+        super().__init__()
+        self.mapping = {}
+
+    def add(self, asset):
+        super().add(asset)
+
+        if asset.id is not None:
+            self.mapping[asset.id] = asset
+
+    def remove(self, asset):
+        super().remove(asset)
+
+        if asset.id in self.mapping:
+            del self.mapping[asset.id]
+
+    def get_by_id(self, asset_id):
+        return self.mapping[asset_id]
 
 class ImageAsset(Asset):
     """An image, like a map or a token."""
