@@ -23,6 +23,7 @@ class BattleMap():
         self.grid_line_width = 1
         self.render_grid()
         self.redraw = True
+        self.redraw_grid = True
 
         self.holding = None
         self.holding_drag_point = None
@@ -39,10 +40,12 @@ class BattleMap():
     def vp_size(self):
         return self.vp_w, self.vp_h
 
+    def new_frame(self):
+        return self.redraw or self.redraw_grid
+
     def set_vp_size(self, new_size):
         self.vp_base_w, self.vp_base_h = new_size
-        self.render_grid()
-        self.redraw = True
+        self.redraw = self.redraw_grid = True
 
     def get_photo_image(self):
         return self.image.get_imagetk()
@@ -98,6 +101,9 @@ class BattleMap():
             if 0 < x + i.w and x < self.vp_w and 0 < y + i.h and y < self.vp_h:
                 vp.blit(i.image, (x, y))
 
+        if self.redraw_grid:
+            self.render_grid()
+
         vp.blit(
             self.grid_image,
             (
@@ -107,7 +113,7 @@ class BattleMap():
         )
 
         self.image = vp.resize((self.vp_base_w, self.vp_base_h))
-        self.redraw = False
+        self.redraw = self.redraw_grid = False
 
     def get_hover_state(self, x, y):
         result = gui_util.DragPoints.NONE, None

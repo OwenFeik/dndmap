@@ -87,7 +87,13 @@ class BattleMapLabel(tk.Frame):
     BORDER_THICKNESS = 10
 
     def __init__(self, master=None):
-        super().__init__(master)
+        super().__init__(
+            master,
+            highlightthickness=BattleMapLabel.BORDER_THICKNESS,
+            highlightbackground='black',
+            # highlightcolour='black',
+            relief='flat'
+        )
         self.bm = battlemap.BattleMap(stage=context.project.active_stage)
 
         self.bm.render()
@@ -107,13 +113,7 @@ class BattleMapLabel(tk.Frame):
 
     def create_image(self):
         self.image = self.bm.get_photo_image()
-        self.label = tk.Label(
-            self,
-            image=self.image,
-            highlightthickness=BattleMapLabel.BORDER_THICKNESS,
-            relief="solid",
-            highlightbackground=gui_util.get_hex_colour(gui_util.BG_COLOUR)
-        )
+        self.label = tk.Label(self, image=self.image)
         self.label.pack(fill="both", expand=True)
 
     def show_context_menu(self, e):
@@ -129,14 +129,19 @@ class BattleMapLabel(tk.Frame):
         self.label.bind('<MouseWheel>', self.bm.handle_mouse_scroll)
         self.label.bind('<Motion>', self.bm.handle_mouse_motion)
         self.label.bind('<Button-3>', self.show_context_menu)
-        self.label.bind('<Configure>', self.resize)
+        root.bind('<Configure>', self.resize)
 
     def resize(self, e):
-        self.label.config(width=e.width, height=e.height)
-        self.bm.set_vp_size((
-            e.width - 2 * BattleMapLabel.BORDER_THICKNESS,
-            e.height - 2 * BattleMapLabel.BORDER_THICKNESS
-        ))
+        if e.widget != root:
+            return
+
+        self.configure(width=e.width, height=e.height)
+
+        w = e.width - 2 * BattleMapLabel.BORDER_THICKNESS
+        h = e.height - 2 * BattleMapLabel.BORDER_THICKNESS
+
+        self.label.configure(width=w, height=h)
+        self.bm.set_vp_size((w, h))
         
     def destroy(self):
         self.rendering = False
@@ -148,7 +153,7 @@ class BattleMapLabel(tk.Frame):
         frame_time_max = 1e9 / self.IDLE_FRAME_RATE
 
         while self.rendering:
-            if self.bm.redraw or \
+            if self.bm.new_frame() or \
                 time.time_ns() > (prev_frame + frame_time_max):
                 
                 self.bm.render()
@@ -233,6 +238,7 @@ def configure_root():
     root.bind('<Key>', gui_util.handle_key_down)
     root.bind('<KeyRelease>', gui_util.handle_key_up)
     root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
+    root.title('dndmap')
 
 configure_root()
 app = Application(root)

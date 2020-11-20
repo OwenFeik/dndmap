@@ -161,9 +161,10 @@ class DataContext():
 
     def __init__(self):
         self.archive = database.ArchiveDatabase(DataContext.ARCHIVE_FILE)
-        self.archive.init()
         self.assets = ArchiveLibrary(self.archive)
+
         self.ensure_fs()
+        self.archive.init()
 
         self.project = None
         self.load_cache()
