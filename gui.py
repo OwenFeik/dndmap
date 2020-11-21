@@ -242,6 +242,7 @@ def configure_root():
     root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
     root.title('dndmap')
     root.pack_propagate(0)
+    root.geometry('1280x720')
 
 configure_root()
 app = Application(root)

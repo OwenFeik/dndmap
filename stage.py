@@ -30,6 +30,7 @@ class PositionedAsset(assets.AssetWrapper):
 
 class StageAsset(PositionedAsset):
     # TODO position is lost through a save-load cycle
+    # TODO resize to a reasonable size on load
 
     GRAB_MARGIN = 10
     MIN_HEIGHT = 32
@@ -42,6 +43,8 @@ class StageAsset(PositionedAsset):
         w, h = img.size
         self._w = kwargs.get('width', kwargs.get('w', w))
         self._h = kwargs.get('height', kwargs.get('h', h))
+        self._x = kwargs.get('x', 0)
+        self._y = kwargs.get('y', 0)
 
 
         self.flipped_x = self.flipped_y = False
@@ -199,7 +202,7 @@ class StageAsset(PositionedAsset):
 class Stage(assets.AssetLibrary):
     """A collection of PositionedAssets."""
 
-    DEFAULT_SIZE = (8, 8)
+    DEFAULT_SIZE = (32, 32)
     DEFAULT_TILE_SIZE = 32
     DEFAULT_ZOOM_LEVEL = 1
     DEFAULT_BG_COLOUR = (0, 0, 0, 0)

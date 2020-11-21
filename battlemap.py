@@ -104,30 +104,33 @@ class BattleMap():
             bg_colour=self.stage.bg_colour
         )
 
-        for i in self.stage:
-            x, y = i.x - self.vp_x, i.y - self.vp_y
-            if 0 < x + i.w and x < self.vp_w and 0 < y + i.h and y < self.vp_h:
-                vp.blit(i.image, (x, y))
-
         if self.redraw_grid:
             self.render_grid()
 
-        if self.grid_image.size > vp.size:
-            vp.blit(
-                self.grid_image,
-                (
-                    -(self.vp_x % self.stage.tile_size),
-                    -(self.vp_y % self.stage.tile_size)
-                )
+        cropped_x = self.grid_image.w > vp.w
+        cropped_y = self.grid_image.h > vp.h
+
+        self.vp_x = self.vp_x if cropped_x else \
+            -(vp.w - self.grid_image.w) // 2
+        self.vp_y = self.vp_y if cropped_y else \
+            -(vp.h - self.grid_image.h) // 2
+
+        for i in self.stage:
+            x, y = i.x - self.vp_x, i.y - self.vp_y
+            on_screen_x = 0 < x + i.w and x < self.vp_w
+            on_screen_y = 0 < y + i.h and y < self.vp_h 
+            if on_screen_x and on_screen_y:
+                vp.blit(i.image, (x, y))
+
+        vp.blit(
+            self.grid_image,
+            (
+                -(self.vp_x % self.stage.tile_size) if cropped_x \
+                    else (vp.w - self.grid_image.w) // 2,
+                -(self.vp_y % self.stage.tile_size) if cropped_y \
+                    else (vp.h - self.grid_image.h) // 2
             )
-        else:
-            vp.blit(
-                self.grid_image,
-                (
-                    (vp.w - self.grid_image.w) // 2,
-                    (vp.h - self.grid_image.h) // 2 
-                )
-            )
+        )
 
         self.image = vp.resize((self.vp_base_w, self.vp_base_h))
         self.redraw = self.redraw_grid = False
