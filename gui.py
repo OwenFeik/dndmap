@@ -90,8 +90,7 @@ class BattleMapLabel(tk.Frame):
         super().__init__(
             master,
             highlightthickness=BattleMapLabel.BORDER_THICKNESS,
-            highlightbackground='black',
-            # highlightcolour='black',
+            highlightbackground='white',
             relief='flat'
         )
         self.bm = battlemap.BattleMap(stage=context.project.active_stage)
@@ -133,6 +132,9 @@ class BattleMapLabel(tk.Frame):
 
     def resize(self, e):
         if e.widget != root:
+            # why do we get configure events from non-root elements after
+            # binding to configure on the root you ask? because fuck you,
+            # that's why
             return
 
         self.configure(width=e.width, height=e.height)
@@ -239,6 +241,7 @@ def configure_root():
     root.bind('<KeyRelease>', gui_util.handle_key_up)
     root.config(bg=gui_util.get_hex_colour(gui_util.BG_COLOUR))
     root.title('dndmap')
+    root.pack_propagate(0)
 
 configure_root()
 app = Application(root)

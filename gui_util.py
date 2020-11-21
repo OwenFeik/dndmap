@@ -11,9 +11,10 @@ class ModKeys():
 class Colours():
     BLACK = (0, 0, 0, 255)
     CLEAR = (0, 0, 0, 0)
-    WHITE = (255, 255, 255, 255)
+    GREEN = (0, 255, 0, 255)
     GREY = (128, 128, 128, 255)
     LIGHT_GREY = (200, 200, 200, 255)
+    WHITE = (255, 255, 255, 255)
 
 BG_COLOUR = Colours.LIGHT_GREY
 

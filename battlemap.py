@@ -20,7 +20,7 @@ class BattleMap():
 
         self.image = None
         self.grid_image = None
-        self.grid_line_width = 1
+        self.grid_line_width = 1 # even numbers look bad
         self.render_grid()
         self.redraw = True
         self.redraw_grid = True
@@ -61,26 +61,34 @@ class BattleMap():
         self.redraw = True
 
     def render_grid(self):
-        right = self.vp_w + self.stage.tile_size
-        bottom = self.vp_h + self.stage.tile_size
+        max_right = (self.stage.tile_size + self.grid_line_width) \
+            * (self.stage.width)
+        max_bottom = (self.stage.tile_size + self.grid_line_width) \
+            * (self.stage.height)
+
+        right = min(self.vp_w + self.stage.tile_size, max_right) \
+            + self.grid_line_width
+        bottom = min(self.vp_h + self.stage.tile_size, max_bottom) \
+            + self.grid_line_width
 
         grid = image.Image(
             size=(right, bottom),
             bg_colour=gui_util.Colours.CLEAR
         )
 
-        # add 2 to allow for cropping of grid to viewport
-        for i in range(0, self.vp_h // self.stage.tile_size + 2):
-            y = i * self.stage.tile_size
+        for i in range(0, bottom // self.stage.tile_size + 2):
+            y = i * (self.stage.tile_size + self.grid_line_width) \
+                + self.grid_line_width // 2
             grid.draw_line(
                 (0, y),
                 (right, y),
                 gui_util.Colours.BLACK,
                 self.grid_line_width
             )
-        
-        for i in range(0, self.vp_w // self.stage.tile_size + 2):
-            x = i * self.stage.tile_size 
+
+        for i in range(0, right // self.stage.tile_size + 1):
+            x = i * (self.stage.tile_size + self.grid_line_width) \
+                + self.grid_line_width // 2
             grid.draw_line(
                 (x, 0),
                 (x, bottom),
@@ -104,13 +112,22 @@ class BattleMap():
         if self.redraw_grid:
             self.render_grid()
 
-        vp.blit(
-            self.grid_image,
-            (
-                -(self.vp_x % self.stage.tile_size),
-                -(self.vp_y % self.stage.tile_size)
+        if self.grid_image.size > vp.size:
+            vp.blit(
+                self.grid_image,
+                (
+                    -(self.vp_x % self.stage.tile_size),
+                    -(self.vp_y % self.stage.tile_size)
+                )
             )
-        )
+        else:
+            vp.blit(
+                self.grid_image,
+                (
+                    (vp.w - self.grid_image.w) // 2,
+                    (vp.h - self.grid_image.h) // 2 
+                )
+            )
 
         self.image = vp.resize((self.vp_base_w, self.vp_base_h))
         self.redraw = self.redraw_grid = False

@@ -199,9 +199,9 @@ class StageAsset(PositionedAsset):
 class Stage(assets.AssetLibrary):
     """A collection of PositionedAssets."""
 
-    DEFAULT_SIZE = (64, 64)
+    DEFAULT_SIZE = (8, 8)
     DEFAULT_TILE_SIZE = 32
-    DEFAULT_ZOOM_LEVEL = 1.25
+    DEFAULT_ZOOM_LEVEL = 1
     DEFAULT_BG_COLOUR = (0, 0, 0, 0)
 
     def __init__(self, **kwargs):
