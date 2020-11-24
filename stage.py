@@ -29,8 +29,6 @@ class PositionedAsset(assets.AssetWrapper):
         return self._z
 
 class StageAsset(PositionedAsset):
-    # TODO resize to a reasonable size on load
-
     GRAB_MARGIN = 10
     MIN_HEIGHT = 32
     MIN_WIDTH = 32
@@ -94,6 +92,7 @@ class StageAsset(PositionedAsset):
     def set_size(self, w, h):
         self._w = w
         self._h = h
+        self.apply_transform()
 
     def end_resize(self):
         if self._w < 0:
@@ -244,6 +243,11 @@ class Stage(assets.AssetLibrary):
             new = StageAsset(asset)
         else:
             raise ValueError(f'Can\'t add asset of type {type(asset)}')
+
+        map_w, map_h = self.map_size
+        if new.w > map_w or new.h > map_h:
+            scale_factor = max(new.w / map_w, new.h / map_h)
+            new.set_size(int(new.w / scale_factor), int(new.h / scale_factor))
 
         new.get_z = lambda: self.assets.index(new)
         self.assets.append(new)

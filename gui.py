@@ -23,16 +23,19 @@ class BattleMapContextMenu(tk.Menu):
         self.tk_popup(e.x_root, e.y_root, 0)
 
     def add_asset(self):
+        path = tkinter.filedialog.askopenfilename(
+            filetypes=[(
+                'Image files',
+                ' '.join([f'*.{ext.lower()}' for ext in \
+                    library.DataContext.ASSET_FORMATS])
+            )]
+        )
+
+        if not path:
+            return
+
         try:
-            context.load_asset(
-                tkinter.filedialog.askopenfilename(
-                    filetypes=[(
-                        'Image files',
-                        ' '.join([f'*.{ext.lower()}' for ext in \
-                            library.DataContext.ASSET_FORMATS])
-                    )]
-                )
-            )
+            context.load_asset(path)
         except ValueError:
             tkinter.messagebox.showerror('Error', 'Failed to load image.')
 
