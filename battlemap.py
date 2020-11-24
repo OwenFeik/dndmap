@@ -3,7 +3,7 @@ import grid_det
 import image
 import stage
 
-# TODO image flickering problem; more sever with more images
+# TODO image flickering problem; more severe with more images
 
 class BattleMap():
     SCROLL_SPEED_COEFF = 0.2
@@ -168,6 +168,22 @@ class BattleMap():
                 pass
             self.redraw = True
 
+    def constrain_viewport(self):
+        self.vp_x = max(
+            min(
+                self.vp_x,
+                (self.stage.width * self.stage.tile_size - self.vp_w)
+            ),
+            0
+        )
+        self.vp_y = max(
+            min(
+                self.vp_y,
+                self.stage.height * self.stage.tile_size - self.vp_h
+            ),
+            0
+        )
+
     def handle_mouse_scroll(self, event):
         if event.num != '??':
             delta = -BattleMap.SCROLL_DELTA_DEFAULT if event.num == 4 else \
@@ -186,16 +202,11 @@ class BattleMap():
             self.render_grid()
         elif x:
             self.vp_x += int(BattleMap.SCROLL_SPEED_COEFF * delta)
-            self.vp_x = max(
-                min(self.vp_x, self.stage.width * self.stage.tile_size),
-                0
-            )
         else:
             self.vp_y += int(BattleMap.SCROLL_SPEED_COEFF * delta)
-            self.vp_y = max(
-                min(self.vp_y, self.stage.height * self.stage.tile_size),
-                0
-            )
+
+        self.constrain_viewport()
+
         self.redraw = True
 
     def handle_mouse_down(self, event):

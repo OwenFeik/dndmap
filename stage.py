@@ -29,7 +29,6 @@ class PositionedAsset(assets.AssetWrapper):
         return self._z
 
 class StageAsset(PositionedAsset):
-    # TODO position is lost through a save-load cycle
     # TODO resize to a reasonable size on load
 
     GRAB_MARGIN = 10

@@ -124,14 +124,15 @@ class Project():
         # elements to the relevant stage.
         stage_assets_by_index = {}
         for tup in db.load_stage_assets():
-            stage_asset_id, asset_id, stage_index, x, y, z = tup
+            stage_asset_id, asset_id, stage_index, x, y, z, properties = tup
 
             stage_asset = stage.StageAsset(
                 kwargs['assets'].get_by_id(asset_id),
                 id=stage_asset_id,
                 x=x,
                 y=y,
-                z=z
+                z=z,
+                **json.loads(properties)
             )
             if not stage_index in stage_assets_by_index:
                 stage_assets_by_index[stage_index] = []
@@ -143,7 +144,8 @@ class Project():
             kwargs[ProjectProperties(key).name.lower()] = \
                 int(value) if value.isnumeric() else value
 
-        kwargs['active_stage'] = kwargs['stages'][kwargs['active_stage']]
+        if 'active_stage' in kwargs:
+            kwargs['active_stage'] = kwargs['stages'][kwargs['active_stage']]
 
         return Project(**kwargs)
 

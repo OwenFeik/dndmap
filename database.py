@@ -3,12 +3,63 @@ import sqlite3
 # Plan is: use sqlite databases as project file format.
 # Also have a second database for the archive.
 
+class Table():
+    def __init__(self, name, columns, **kwargs):
+        self.name = name
+        
+        self.count = len(columns)
+        self.names = []
+
+        self.commands = {}
+
+        self.create_schema(columns, kwargs.get('constraints', []))            
+        self.create_commands()
+
+
+    def create_schema(self, columns, constraints):
+        schema = f'CREATE TABLE IF NOT EXISTS {self.name}('
+        for n, t in columns:
+            self.names.append(n)
+            schema += f'{n} {t}, '
+
+        for c in constraints:
+            schema += f'{c}, '
+
+        if schema[-2:] == ', ':
+            schema = schema[:-2]
+
+        schema += ');'
+
+        self.commands['SCHEMA'] = schema
+
+    def create_commands(self):
+        self.commands['INSERT'] = \
+            f'INSERT INTO {self.name} ({self.all_cols()}) VALUES ' \
+            f'({self.var_str()});'
+        self.commands['REPLACE'] = \
+            f'REPLACE INTO {self.name} ({self.all_cols()}) VALUES ' \
+            f'({self.var_str()});'
+        self.commands['SELECT_ALL'] = \
+            f'SELECT {self.all_cols()} FROM {self.name};'
+        self.commands['SELECT_ROWID'] = \
+            f'SELECT last_insert_rowid() FROM {self.name};'
+
+    def all_cols(self):
+        return ', '.join(self.names)
+
+    def var_str(self):
+        return ('?, ' * self.count)[:-2]
+
+    def command(self, name):
+        return self.commands[name]
+
 class Database():
     VERSION = 0
 
     def __init__(self, file):
         self.file = file
         self.conn = None
+        self.tables = {}
         self.startup_commands = [
             f'PRAGMA user_version = {Database.VERSION};',
             'PRAGMA foreign_keys = ON;'
@@ -17,6 +68,9 @@ class Database():
     def init(self):
         self.conn = sqlite3.connect(self.file)
         self.migrate()
+
+        for t in self.tables:
+            self.startup_commands.append(self.tables[t].commands['SCHEMA'])
         for c in self.startup_commands:
             self.execute(c)
 
@@ -72,75 +126,47 @@ class ProjectDatabase(Database):
     def __init__(self, file):
         super().__init__(file)
 
-        self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS assets('
-                'id INTEGER PRIMARY KEY, '
-                'name TEXT, '
-                'type INTEGER, '
-                'properties TEXT, '
-                'thumbnail BLOB, '
-                'description TEXT, '
-                'data BLOB, '
-                'hash INTEGER'
-            ');'    
-        )
-        self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS stages('
-                'id INTEGER PRIMARY KEY, '
-                'name TEXT, '
-                'idx INTEGER NOT NULL UNIQUE, '
-                'description TEXT, '
-                'width INTEGER, '
-                'height INTEGER, '
-                'tile_size INTEGER, '
-                'line_width INTEGER, '
-                'zoom_level FLOAT, '
-                'bg_colour INTEGER, '
-                'notes TEXT'
-            ');'
-        )
-        self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS stage_assets('
-                'id INTEGER PRIMARY KEY, '
-                'asset INTEGER, '
-                'stage INTEGER, '
-                'x INTEGER, '
-                'y INTEGER, '
-                'z INTEGER, '
-                'FOREIGN KEY(asset) REFERENCES assets(id), '
-                'FOREIGN KEY(stage) REFERENCES stages(id)'
-            ');'
-        )
-        self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS meta('
-                'key INTEGER PRIMARY KEY, '
-                'value TEXT'
-            ');'
-        )
+        self.tables = {}
 
-        self.add_commands()
-
-    def add_commands(self):
-        self.commands = {
-            'ADD_ASSET':
-                'REPLACE INTO assets('
-                    'id, name, type, properties, thumbnail, data, hash'
-                ') VALUES (?, ?, ?, ?, ?, ?, ?);',
-            'ADD_STAGE':
-                'REPLACE INTO stages('
-                    'id, '
-                    'name, '
-                    'idx, '
-                    'description, '
-                    'width, '
-                    'height, '
-                    'tile_size, '
-                    'line_width, '
-                    'zoom_level, '
-                    'bg_colour, '
-                    'notes'
-                ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'
-        }
+        self.tables['assets'] = Table('assets', [
+            ('id', 'INTEGER PRIMARY KEY'),
+            ('name', 'TEXT'),
+            ('type', 'INTEGER'),
+            ('properties', 'TEXT'),
+            ('thumbnail', 'BLOB'),
+            ('description', 'TEXT'),
+            ('data', 'BLOB'),
+            ('hash', 'INTEGER')
+        ])
+        self.tables['stages'] = Table('stages', [
+            ('id', 'INTEGER PRIMARY KEY'),
+            ('name', 'TEXT'),
+            ('idx', 'INTEGER NOT NULL UNIQUE'),
+            ('description', 'TEXT'),
+            ('width', 'INTEGER'),
+            ('height', 'INTEGER'),
+            ('tile_size', 'INTEGER'),
+            ('line_width', 'INTEGER'),
+            ('zoom_level', 'FLOAT'),
+            ('bg_colour', 'INTEGER'),
+            ('notes', 'TEXT')
+        ])
+        self.tables['stage_assets'] = Table('stage_assets', [
+            ('id', 'INTEGER PRIMARY KEY'),
+            ('asset', 'INTEGER'),
+            ('stage', 'INTEGER'),
+            ('x', 'INTEGER'),
+            ('y', 'INTEGER'),
+            ('z', 'INTEGER'),
+            ('properties', 'TEXT')
+        ], constraints=[
+            'FOREIGN KEY(asset) REFERENCES assets(id)',
+            'FOREIGN KEY(stage) REFERENCES stages(id)'
+        ])
+        self.tables['meta'] = Table('meta', [
+            ('key', 'INTEGER PRIMARY KEY'),
+            ('value', 'TEXT')
+        ])
 
     def db_tup_from_asset(self, asset):
         blob, blob_hash = asset.get_data()
@@ -150,15 +176,16 @@ class ProjectDatabase(Database):
             asset.type.value,
             asset.properties,
             asset.thumbnail.as_bytes(),
+            asset.description,
             blob,
             blob_hash
         )
  
     def add_asset(self, asset):
-        """Adds an asset to the db, setting it's id property if unset."""
+        """Adds an asset to the db, setting its id property if unset."""
 
         self.execute(
-            self.commands['ADD_ASSET'],
+            self.tables['assets'].command('REPLACE'),
             self.db_tup_from_asset(asset)
         )
 
@@ -171,7 +198,7 @@ class ProjectDatabase(Database):
         """Add assets to the db, setting their ids if unset."""
 
         self.execute_many(
-            self.commands['ADD_ASSET'],
+            self.tables['assets'].command('REPLACE'),
             [self.db_tup_from_asset(a) for a in assets if a.id is not None]
         )
         for a in [a for a in assets if a.id is None]:
@@ -198,25 +225,25 @@ class ProjectDatabase(Database):
             stage_id,
             stage_asset.x,
             stage_asset.y,
-            stage_asset.z
+            stage_asset.z,
+            stage_asset.properties
         )
 
     def add_stage_asset(self, stage_asset, stage_id):
         self.execute(
-            'REPLACE INTO stage_assets (id, asset, stage, x, y, z) '
-            'VALUES (?, ?, ?, ?, ?, ?);',
+            self.tables['stage_assets'].command('REPLACE'),
             self.db_tup_from_stage_asset(stage_asset, stage_id)
         )
 
         if stage_asset.id is None:
             stage_asset.id = self.fetch_single(
-                'SELECT last_insert_rowid() FROM stage_assets;'
+                self.tables['stage_assets'].command('SELECT_ROWID')
             )
 
     def load_stage_assets(self):
         return self.fetch_all(
-            'SELECT stage_assets.id, asset, idx, x, y, z FROM stage_assets '
-            'INNER JOIN stages ON stages.id = stage_assets.stage;'
+            'SELECT stage_assets.id, asset, idx, x, y, z, properties FROM '
+            'stage_assets INNER JOIN stages ON stages.id = stage_assets.stage;'
         )
 
     def purge_stage_assets(self):
@@ -241,13 +268,13 @@ class ProjectDatabase(Database):
         """Insert a stage to the db, setting its id if unset."""
 
         self.execute(
-            self.commands['ADD_STAGE'],
+            self.tables['stages'].command('REPLACE'),
             self.db_tup_from_stage(stage, index)
         )
 
         if stage.id is None:
             stage.id = self.fetch_single(
-                'SELECT last_insert_rowid() FROM stages;'
+                self.tables['stages'].command('SELECT_ROWID')
             )
 
     def add_stages(self, stages):
@@ -260,7 +287,7 @@ class ProjectDatabase(Database):
             else:
                 batch.append(self.db_tup_from_stage(s, i))
 
-        self.execute_many(self.commands['ADD_STAGE'], batch)
+        self.execute_many(self.tables['stages'].command('REPLACE'), batch)
         for tup in indiv:
             self.add_stage(*tup)
 
@@ -276,38 +303,20 @@ class ProjectDatabase(Database):
                     batch.append(self.db_tup_from_stage_asset(a, s.id))
 
         self.execute_many(
-            'REPLACE INTO stage_assets (id, asset, stage, x, y, z) '
-            'VALUES (?, ?, ?, ?, ?, ?);',
+            self.tables['stage_assets'].command('REPLACE'),
             batch
         )
         for tup in indiv:
             self.add_stage_asset(*tup)
 
     def load_stages(self):
-        return self.fetch_all(
-            'SELECT '
-                'id, '
-                'name, '
-                'idx, '
-                'description, '
-                'width, '
-                'height, '
-                'tile_size, '
-                'line_width, '
-                'zoom_level, '
-                'bg_colour, '
-                'notes'
-            ' FROM stages;'
-        )
+        return self.fetch_all(self.tables['stages'].command('SELECT_ALL'))
 
     def add_meta(self, entries):
-        self.execute_many(
-            'REPLACE INTO meta (key, value) VALUES (?, ?);',
-            entries
-        )
+        self.execute_many(self.tables['meta'].command('REPLACE'), entries)
 
     def load_meta(self):
-        return self.fetch_all('SELECT * FROM meta;')
+        return self.fetch_all(self.tables['meta'].command('SELECT_ALL'))
 
 class ArchiveDatabase(Database):
     """
@@ -321,23 +330,19 @@ class ArchiveDatabase(Database):
     def __init__(self, file):
         super().__init__(file)
 
-        self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS assets('
-                'path TEXT COLLATE NOCASE PRIMARY KEY, '
-                'name TEXT, '
-                'type INTEGER, '
-                'properties TEXT, '
-                'thumbnail BLOB, '
-                'description TEXT'
-            ');'
-        )
-        self.startup_commands.append(
-            'CREATE TABLE IF NOT EXISTS projects('
-                'path TEXT COLLATE NOCASE PRIMARY KEY, '
-                'name TEXT, '
-                'description TEXT'
-            ');'
-        )
+        self.tables['assets'] = Table('assets', [
+            ('path', 'TEXT COLLATE NOCASE PRIMARY KEY'),
+            ('name', 'TEXT'),
+            ('type', 'INTEGER'),
+            ('properties', 'TEXT'),
+            ('thumbnail', 'BLOB'),
+            ('description', 'TEXT')
+        ])
+        self.tables['projects'] = Table('projects', [
+            ('path', 'TEXT COLLATE NOCASE PRIMARY KEY'),
+            ('name', 'TEXT'),
+            ('description', 'TEXT')
+        ])
 
     def db_tup_from_asset(self, asset):
         return (
@@ -351,9 +356,7 @@ class ArchiveDatabase(Database):
 
     def add_asset(self, asset):
         self.execute(
-            'REPLACE INTO assets('
-                'path, name, type, properties, thumbnail, description'
-            ') VALUES (?, ?, ?, ?, ?, ?);',
+            self.tables['assets'].command('REPLACE'),
             self.db_tup_from_asset(asset)
         )
 
@@ -372,9 +375,9 @@ class ArchiveDatabase(Database):
 
     def add_project(self, project):
         self.execute(
-            'REPLACE INTO projects(path, name, description) VALUES (?, ?, ?);',
+            self.tables['projects'].command('REPLACE'),
             self.db_tup_from_project(project)
         )
 
     def load_project_list(self):
-        return self.fetch_all('SELECT * FROM projects;')
+        return self.fetch_all(self.tables['projects'].command('SELECT_ALL'))
