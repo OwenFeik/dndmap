@@ -90,7 +90,7 @@ class BattleMapLabel(tk.Frame):
         super().__init__(
             master,
             highlightthickness=BattleMapLabel.BORDER_THICKNESS,
-            highlightbackground='white',
+            highlightbackground=gui_util.get_hex_colour(gui_util.BG_COLOUR),
             relief='flat'
         )
         self.bm = battlemap.BattleMap(stage=context.project.active_stage)

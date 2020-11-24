@@ -205,6 +205,7 @@ class Stage(assets.AssetLibrary):
     DEFAULT_SIZE = (32, 32)
     DEFAULT_TILE_SIZE = 32
     DEFAULT_ZOOM_LEVEL = 1
+    DEFAULT_LINE_WIDTH = 1
     DEFAULT_BG_COLOUR = (0, 0, 0, 0)
 
     def __init__(self, **kwargs):
@@ -219,9 +220,19 @@ class Stage(assets.AssetLibrary):
         self.height = kwargs.get('height', kwargs.get('h', h))
         
         self.tile_size = kwargs.get('tile_size', Stage.DEFAULT_TILE_SIZE)
+        self.line_width = kwargs.get('line_width', Stage.DEFAULT_LINE_WIDTH)
         self.zoom_level = kwargs.get('zoom_level', Stage.DEFAULT_ZOOM_LEVEL)
         self.bg_colour = kwargs.get('bg_colour', Stage.DEFAULT_BG_COLOUR)
         self.notes = kwargs.get('notes', [])
+
+    @property
+    def total_tile_size(self):
+        return self.tile_size + self.line_width
+
+    @property
+    def map_size(self):
+        return self.total_tile_size * self.width, \
+            self.total_tile_size * self.height
 
     @property
     def notes_json(self):
@@ -277,7 +288,7 @@ class Stage(assets.AssetLibrary):
     @staticmethod
     def from_db_tup(tup):
         stage_id, name, index, description, width, height, tile_size, \
-            zoom_level, bg_colour_int, notes = tup
+            line_width, zoom_level, bg_colour_int, notes = tup
 
         return index, Stage(
             id=stage_id,
@@ -286,6 +297,7 @@ class Stage(assets.AssetLibrary):
             width=width,
             height=height,
             tile_size=tile_size,
+            line_width=line_width,
             zoom_level=zoom_level,
             bg_colour=gui_util.decode_to_colour(bg_colour_int),
             notes=json.loads(notes)

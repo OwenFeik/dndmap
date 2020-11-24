@@ -93,6 +93,7 @@ class ProjectDatabase(Database):
                 'width INTEGER, '
                 'height INTEGER, '
                 'tile_size INTEGER, '
+                'line_width INTEGER, '
                 'zoom_level FLOAT, '
                 'bg_colour INTEGER, '
                 'notes TEXT'
@@ -134,10 +135,11 @@ class ProjectDatabase(Database):
                     'width, '
                     'height, '
                     'tile_size, '
+                    'line_width, '
                     'zoom_level, '
                     'bg_colour, '
                     'notes'
-                ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'
+                ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'
         }
 
     def db_tup_from_asset(self, asset):
@@ -229,6 +231,7 @@ class ProjectDatabase(Database):
             stage.width,
             stage.height,
             stage.tile_size,
+            stage.line_width,
             stage.zoom_level,
             stage.get_bg_colour_int(),
             stage.notes_json
@@ -290,6 +293,7 @@ class ProjectDatabase(Database):
                 'width, '
                 'height, '
                 'tile_size, '
+                'line_width, '
                 'zoom_level, '
                 'bg_colour, '
                 'notes'

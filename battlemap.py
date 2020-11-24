@@ -20,7 +20,6 @@ class BattleMap():
 
         self.image = None
         self.grid_image = None
-        self.grid_line_width = 1 # even numbers look bad
         self.render_grid()
         self.redraw = True
         self.redraw_grid = True
@@ -61,15 +60,13 @@ class BattleMap():
         self.redraw = True
 
     def render_grid(self):
-        max_right = (self.stage.tile_size + self.grid_line_width) \
-            * (self.stage.width)
-        max_bottom = (self.stage.tile_size + self.grid_line_width) \
-            * (self.stage.height)
+        max_right = self.stage.total_tile_size * self.stage.width
+        max_bottom = self.stage.total_tile_size * self.stage.height
 
         right = min(self.vp_w + self.stage.tile_size, max_right) \
-            + self.grid_line_width
+            + self.stage.line_width
         bottom = min(self.vp_h + self.stage.tile_size, max_bottom) \
-            + self.grid_line_width
+            + self.stage.line_width
 
         grid = image.Image(
             size=(right, bottom),
@@ -77,23 +74,21 @@ class BattleMap():
         )
 
         for i in range(0, bottom // self.stage.tile_size + 2):
-            y = i * (self.stage.tile_size + self.grid_line_width) \
-                + self.grid_line_width // 2
+            y = i * self.stage.total_tile_size + self.stage.line_width // 2
             grid.draw_line(
                 (0, y),
                 (right, y),
                 gui_util.Colours.BLACK,
-                self.grid_line_width
+                self.stage.line_width
             )
 
         for i in range(0, right // self.stage.tile_size + 1):
-            x = i * (self.stage.tile_size + self.grid_line_width) \
-                + self.grid_line_width // 2
+            x = i * self.stage.total_tile_size + self.stage.line_width // 2
             grid.draw_line(
                 (x, 0),
                 (x, bottom),
                 gui_util.Colours.BLACK,
-                self.grid_line_width
+                self.stage.line_width
             )
 
         self.grid_image = grid
@@ -122,15 +117,24 @@ class BattleMap():
             if on_screen_x and on_screen_y:
                 vp.blit(i.image, (x, y))
 
-        vp.blit(
-            self.grid_image,
-            (
-                -(self.vp_x % self.stage.tile_size) if cropped_x \
-                    else (vp.w - self.grid_image.w) // 2,
-                -(self.vp_y % self.stage.tile_size) if cropped_y \
-                    else (vp.h - self.grid_image.h) // 2
-            )
-        )
+        map_w, map_h = self.stage.map_size
+
+        if map_w < self.vp_w:
+            x = (vp.w - self.grid_image.w) // 2
+        # elif map_w < self.vp_x + self.vp_w:
+        #     x =  map_w - self.vp_x - self.vp_w
+        else:
+            x = -(self.vp_x % self.stage.total_tile_size)
+
+        if map_h < self.vp_h:
+            y = (vp.h - self.grid_image.h) // 2
+        # this doesn't quite have the correct offset
+        # elif map_h < self.vp_y + self.vp_h:
+        #     y = map_h - self.vp_y - self.vp_h
+        else:
+            y = -(self.vp_y % self.stage.tile_size)
+
+        vp.blit(self.grid_image, (x, y))
 
         self.image = vp.resize((self.vp_base_w, self.vp_base_h))
         self.redraw = self.redraw_grid = False
