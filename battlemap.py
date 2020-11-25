@@ -46,6 +46,10 @@ class BattleMap():
         self.vp_base_w, self.vp_base_h = new_size
         self.redraw = self.redraw_grid = True
 
+    def set_stage(self, new):
+        self.stage = new
+        self.redraw = self.redraw_grid = True
+
     def get_photo_image(self):
         return self.image.get_imagetk()
 
@@ -115,7 +119,7 @@ class BattleMap():
             on_screen_x = 0 < x + i.w and x < self.vp_w
             on_screen_y = 0 < y + i.h and y < self.vp_h 
             if on_screen_x and on_screen_y:
-                vp.blit(i.image, (x, y))
+                i.render_to(vp, x, y)
 
         map_w, map_h = self.stage.map_size
 
@@ -132,7 +136,7 @@ class BattleMap():
         # elif map_h < self.vp_y + self.vp_h:
         #     y = map_h - self.vp_y - self.vp_h
         else:
-            y = -(self.vp_y % self.stage.tile_size)
+            y = -(self.vp_y % self.stage.total_tile_size)
 
         vp.blit(self.grid_image, (x, y))
 

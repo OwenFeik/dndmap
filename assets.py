@@ -51,27 +51,6 @@ class Asset():
             'asset_type': self.type
         }
 
-class TokenAsset(Asset):
-    """A token like a player or monster image."""
-
-    def __init__(self, **kwargs):
-        kwargs['asset_type'] = AssetType.TOKEN
-        super().__init__(**kwargs)
-
-        w, h = kwargs.get('size', (1, 1))
-        self.w = kwargs.get('w', kwargs.get('width', w))
-        self.h = kwargs.get('h', kwargs.get('height', h))
-    
-        self.image = kwargs.get('image', ImageAsset())
-
-    @property
-    def size(self):
-        return self.w, self.h
-
-    @property
-    def properties(self):
-        return json.dumps({'w': self.w, 'h': self.h})
-
 class AssetWrapper(Asset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

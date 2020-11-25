@@ -43,8 +43,10 @@ class StageAsset(PositionedAsset):
         self._x = kwargs.get('x', 0)
         self._y = kwargs.get('y', 0)
 
+        self.flipped_x = kwargs.get('flipped_x', False)
+        self.flipped_y = kwargs.get('flipped_y', False)
 
-        self.flipped_x = self.flipped_y = False
+        self.pixel_pos = kwargs.get('pixel_pos', True)
 
         self.image = None
         self.apply_transform()
@@ -94,7 +96,7 @@ class StageAsset(PositionedAsset):
         self._h = h
         self.apply_transform()
 
-    def end_resize(self):
+    def finalise_dimensions(self):
         if self._w < 0:
             self.flipped_x = not self.flipped_x
         if self._h < 0:
@@ -108,6 +110,8 @@ class StageAsset(PositionedAsset):
         self._w = max(self._w, self.MIN_WIDTH)
         self._h = max(self._h, self.MIN_HEIGHT)
 
+    def end_resize(self):
+        self.finalise_dimensions()
         self.apply_transform()
 
     def apply_transform(self, fast=False):
@@ -122,6 +126,9 @@ class StageAsset(PositionedAsset):
             ).resize((self.w, self.h), fast)
         else:
             self.image = self.base_image.resize((self.w, self.h), fast)
+
+    def render_to(self, vp, x, y):
+        vp.blit(self.image, (x, y))
 
     def handle_resize(self, drag_point, x, y):
         if drag_point in [
@@ -197,6 +204,54 @@ class StageAsset(PositionedAsset):
     def from_file(path, **kwargs):
         return StageAsset(assets.ImageAsset.from_file(path), **kwargs)
 
+class TokenAsset(StageAsset):
+    MIN_WIDTH = MIN_HEIGHT = 1
+
+    def __init__(self, img, **kwargs):
+        self.get_grid_info = kwargs.get(
+            'get_grid_info',
+            lambda: (Stage.DEFAULT_TILE_SIZE + Stage.DEFAULT_LINE_WIDTH,
+                Stage.DEFAULT_LINE_WIDTH)
+        )
+        self.tile_width = kwargs.get('tile_width', 1)
+        self.tile_height = kwargs.get('tile_height', 1)
+
+        kwargs['w'] = self.tile_width * Stage.DEFAULT_TILE_SIZE
+        kwargs['h'] = self.tile_height * Stage.DEFAULT_TILE_SIZE
+        kwargs['pixel_pos'] = False
+
+        super().__init__(img, **kwargs)
+
+    def finalise_dimensions(self):
+        super().finalise_dimensions()
+
+        ts, lw = self.get_grid_info()
+
+        self._x = round(self._x / ts) * ts + lw // 2
+        self._y = round(self._y / ts) * ts + lw // 2
+
+        self.tile_width = round(self._w / ts)
+        self.tile_height = round(self._h / ts)
+
+        self._w = self.tile_width * ts
+        self._h = self.tile_height * ts
+
+    @property
+    def properties(self):
+        return json.dumps({
+            'token': True,
+            'tile_width': self.tile_width,
+            'tile_height': self.tile_height,
+            'flipped_x': self.flipped_x,
+            'flipped_y': self.flipped_y
+        })
+
+def create_stage_asset(asset, **kwargs):
+    if kwargs.get('token'):
+        return TokenAsset(asset, **kwargs)
+    else:
+        return StageAsset(asset, **kwargs)
+
 class Stage(assets.AssetLibrary):
     """A collection of PositionedAssets."""
 
@@ -239,6 +294,9 @@ class Stage(assets.AssetLibrary):
     def add(self, asset):
         if type(asset) == StageAsset:
             new = asset
+        elif type(asset) == TokenAsset:
+            new = asset
+            new.get_grid_info = lambda: (self.total_tile_size, self.line_width)
         elif type(asset) == assets.ImageAsset:
             new = StageAsset(asset)
         else:

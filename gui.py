@@ -11,33 +11,91 @@ import library
 root = tk.Tk()
 running = True
 context = library.DataContext()
+bm = battlemap.BattleMap(stage=context.project.active_stage)
+
+def get_image_path():
+    path = tkinter.filedialog.askopenfilename(
+        filetypes=[(
+            'Image files',
+            ' '.join([f'*.{ext.lower()}' for ext in \
+                library.DataContext.ASSET_FORMATS])
+        )]
+    )
+
+    # sometimes path is an empty tuple for some reason
+    if not path:
+        return None
+    return path
+
+def prompt_save():
+    if tkinter.messagebox.askyesno(
+        title='Save project?',
+        message='If you open a different project, unsaved work will be'
+            ' lost. Save now?'
+    ):
+        save_project()
+
+def add_image():
+    path = get_image_path()
+    if not path:
+        return
+
+    try:
+        context.load_asset(path)
+    except ValueError:
+        tkinter.messagebox.showerror('Error', 'Failed to load image.')
+
+def add_token():
+    path = get_image_path()
+    if not path:
+        return
+
+    try:
+        context.load_asset(path, token=True)
+    except ValueError:
+        tkinter.messagebox.showerror('Error', 'Failed to create token.')
+
+def save_project():
+    try:
+        context.save_project()
+        return
+    except ValueError:
+        pass
+
+    path = tkinter.filedialog.asksaveasfilename(
+        defaultextension=library.Project.FILE_FORMAT,
+        initialfile='myproject' + library.Project.FILE_FORMAT,
+        initialdir=library.Project.SAVE_DIR
+    )
+    context.save_project(path)
+
+def open_project():
+    prompt_save()
+
+    path = tkinter.filedialog.askopenfilename(
+        filetypes=[(
+            'Project files',
+            f'*{library.Project.FILE_FORMAT}'
+        )],
+        initialdir=library.Project.SAVE_DIR
+    )
+
+    if path:
+        context.load_project(path)
+        
+def new_project():
+    prompt_save()
+    context.new_project()
+    bm.set_stage(context.project.active_stage)
 
 class BattleMapContextMenu(tk.Menu):
     def __init__(self, master):
         super().__init__(master, tearoff=0)
-        self.bm = master.bm
-
-        self.add_command(label='Add image', command=self.add_asset)
+        self.add_command(label='Add image', command=add_image)
+        self.add_command(label='Add token', command=add_token)
 
     def show(self, e):
         self.tk_popup(e.x_root, e.y_root, 0)
-
-    def add_asset(self):
-        path = tkinter.filedialog.askopenfilename(
-            filetypes=[(
-                'Image files',
-                ' '.join([f'*.{ext.lower()}' for ext in \
-                    library.DataContext.ASSET_FORMATS])
-            )]
-        )
-
-        if not path:
-            return
-
-        try:
-            context.load_asset(path)
-        except ValueError:
-            tkinter.messagebox.showerror('Error', 'Failed to load image.')
 
 class BattleMapImageContextMenu(BattleMapContextMenu):
     def __init__(self, master):
@@ -77,7 +135,7 @@ class BattleMapImageContextMenu(BattleMapContextMenu):
             return
         
         try:
-            self.bm.snap_to_grid(self.target)
+            bm.snap_to_grid(self.target)
         except ValueError:
             tkinter.messagebox.showerror(
                 'Error',
@@ -96,9 +154,8 @@ class BattleMapLabel(tk.Frame):
             highlightbackground=gui_util.get_hex_colour(gui_util.BG_COLOUR),
             relief='flat'
         )
-        self.bm = battlemap.BattleMap(stage=context.project.active_stage)
 
-        self.bm.render()
+        bm.render()
 
         self.image = None
         self.create_image()
@@ -114,22 +171,22 @@ class BattleMapLabel(tk.Frame):
         self.pack(fill="both", expand=True)
 
     def create_image(self):
-        self.image = self.bm.get_photo_image()
+        self.image = bm.get_photo_image()
         self.label = tk.Label(self, image=self.image)
         self.label.pack(fill="both", expand=True)
 
     def show_context_menu(self, e):
-        img = self.bm.handle_mouse_down(e)
+        img = bm.handle_mouse_down(e)
         if img is None:
             self.background_menu.show(e)
         else:
             self.image_menu.show_on_image(e, img)
 
     def bind_events(self):
-        self.label.bind('<Button>', self.bm.handle_mouse_down)
-        self.label.bind('<ButtonRelease>', self.bm.handle_mouse_up)
-        self.label.bind('<MouseWheel>', self.bm.handle_mouse_scroll)
-        self.label.bind('<Motion>', self.bm.handle_mouse_motion)
+        self.label.bind('<Button>', bm.handle_mouse_down)
+        self.label.bind('<ButtonRelease>', bm.handle_mouse_up)
+        self.label.bind('<MouseWheel>', bm.handle_mouse_scroll)
+        self.label.bind('<Motion>', bm.handle_mouse_motion)
         self.label.bind('<Button-3>', self.show_context_menu)
         root.bind('<Configure>', self.resize)
 
@@ -146,7 +203,7 @@ class BattleMapLabel(tk.Frame):
         h = e.height - 2 * BattleMapLabel.BORDER_THICKNESS
 
         self.label.configure(width=w, height=h)
-        self.bm.set_vp_size((w, h))
+        bm.set_vp_size((w, h))
         
     def destroy(self):
         self.rendering = False
@@ -158,13 +215,13 @@ class BattleMapLabel(tk.Frame):
         frame_time_max = 1e9 / self.IDLE_FRAME_RATE
 
         while self.rendering:
-            if self.bm.new_frame() or \
+            if bm.new_frame() or \
                 time.time_ns() > (prev_frame + frame_time_max):
                 
-                self.bm.render()
+                bm.render()
 
                 _old_image = self.image # need to stop from being eaten by gc
-                self.image = self.bm.get_photo_image()
+                self.image = bm.get_photo_image()
                 self.label.configure(image=self.image)
                 
                 root.update_idletasks()
@@ -185,45 +242,19 @@ class TitleBarMenu(tk.Menu):
         root.config(menu=self)
 
         filemenu = tk.Menu(self, tearoff=0)
-        filemenu.add_command(label='Save', command=self.save_project)
-        filemenu.add_command(label='Open', command=self.open_project)
+        filemenu.add_command(label='Save', command=save_project)
+        filemenu.add_command(label='Open', command=open_project)
+        filemenu.add_command(label='New', command=new_project)
         filemenu.add_separator()
         filemenu.add_command(label='Quit', command=root.destroy)
 
         self.add_cascade(label='File', menu=filemenu)
 
-    def save_project(self):
-        try:
-            context.save_project()
-            return
-        except ValueError:
-            pass
+        insertmenu = tk.Menu(self, tearoff=0)
+        insertmenu.add_command(label='Image', command=add_image)
+        insertmenu.add_command(label='Token', command=add_token)
 
-        path = tkinter.filedialog.asksaveasfilename(
-            defaultextension=library.Project.FILE_FORMAT,
-            initialfile='myproject' + library.Project.FILE_FORMAT,
-            initialdir=library.Project.SAVE_DIR
-        )
-        context.save_project(path)
-
-    def open_project(self):
-        if tkinter.messagebox.askyesno(
-            title='Save project?',
-            message='If you open a different project, unsaved work will be'
-                ' lost. Save now?'
-        ):
-            self.save_project()
-
-        path = tkinter.filedialog.askopenfilename(
-            filetypes=[(
-                'Project files',
-                f'*{library.Project.FILE_FORMAT}'
-            )],
-            initialdir=library.Project.SAVE_DIR
-        )
-
-        if path:
-            context.load_project(path)
+        self.add_cascade(label='Insert', menu=insertmenu)
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -249,7 +280,4 @@ def configure_root():
 
 configure_root()
 app = Application(root)
-
-app.image.bm.redraw = True
-
 app.mainloop()

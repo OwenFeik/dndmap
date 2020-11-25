@@ -70,6 +70,9 @@ class Project():
     def export(self, path):
         """Save all of the assets in this project to a file."""
 
+        if self.path is None and os.path.isfile(path):
+            os.remove(path)
+
         self.path = path
         db = database.ProjectDatabase(path).init()
         db.add_assets(self.assets)
@@ -86,10 +89,10 @@ class Project():
         db.commit()
         db.close()
 
-    def add_asset(self, asset, insert=True):
+    def add_asset(self, asset, **kwargs):
         self.assets.add(asset)
-        if insert and self.active_stage is not None:
-            self.active_stage.add(asset)
+        if kwargs.get('insert', True) and self.active_stage is not None:
+            self.active_stage.add(stage.create_stage_asset(asset, **kwargs))
 
     @staticmethod
     def load(path):
@@ -125,14 +128,17 @@ class Project():
         stage_assets_by_index = {}
         for tup in db.load_stage_assets():
             stage_asset_id, asset_id, stage_index, x, y, z, properties = tup
-
-            stage_asset = stage.StageAsset(
-                kwargs['assets'].get_by_id(asset_id),
-                id=stage_asset_id,
-                x=x,
-                y=y,
-                z=z,
+            stage_asset_kwargs = {
+                'id': stage_asset_id,
+                'x': x,
+                'y': y,
+                'z': z,
                 **json.loads(properties)
+            }
+
+            stage_asset = stage.create_stage_asset(
+                kwargs['assets'].get_by_id(asset_id),
+                **stage_asset_kwargs
             )
             if not stage_index in stage_assets_by_index:
                 stage_assets_by_index[stage_index] = []
@@ -192,10 +198,10 @@ class DataContext():
                 'active_project': self.project.path
             }, f)
 
-    def load_asset(self, path):
+    def load_asset(self, path, **kwargs):
         asset = assets.load_asset(path)
 
-        self.project.add_asset(asset)
+        self.project.add_asset(asset, **kwargs)
         self.assets.add(asset)
 
     def load_project(self, path):
@@ -210,6 +216,9 @@ class DataContext():
             self.project.save()
 
         self.archive.add_project(self.project)
+
+    def new_project(self):
+        self.project = Project()
 
     def exit(self):
         self.save_cache()
