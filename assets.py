@@ -7,6 +7,7 @@ import util
 class AssetType(enum.Enum):
     IMAGE = 0
     TOKEN = 1
+    WRAPPER = 1
 
 class Asset():
     """A resource which can be used on a battlemap."""
@@ -44,21 +45,27 @@ class Asset():
 
     def get_dict(self):
         return {
-            'id': self.id,
-            'path': self.path,
-            'name': self.name,
+            'asset_type': self.type.value(),
             'description': self.description,
-            'asset_type': self.type
+            'id': self.id,
+            'name': self.name,
+            'path': self.path,
         }
 
 class AssetWrapper(Asset):
     def __init__(self, **kwargs):
+        kwargs['asset_type'] = AssetType.WRAPPER
         super().__init__(**kwargs)
         self._asset = kwargs.get('asset')
 
     @property
     def asset(self):
         return self._asset
+
+    def get_dict(self):
+        return super().get_dict().update({
+            'asset': self._asset.id
+        })
 
 class AssetPreview(AssetWrapper):
     def __init__(self, **kwargs):

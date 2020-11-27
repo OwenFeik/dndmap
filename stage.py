@@ -28,13 +28,20 @@ class PositionedAsset(assets.AssetWrapper):
     def get_z(self):
         return self._z
 
+    def get_dict(self):
+        return super().get_dict().update({
+            'x': self.x,
+            'y': self.y,
+            'z': self.z
+        })
+
 class StageAsset(PositionedAsset):
     GRAB_MARGIN = 10
     MIN_HEIGHT = 32
     MIN_WIDTH = 32
 
     def __init__(self, img, **kwargs):
-        super().__init__(asset=img, asset_type=assets.AssetType.IMAGE)
+        super().__init__(asset=img)
         self.base_image = self.asset.image
 
         w, h = img.size
@@ -84,12 +91,18 @@ class StageAsset(PositionedAsset):
 
     @property
     def properties(self):
-        return json.dumps({
+        return json.dumps(self.get_properties())
+
+    def get_properties(self):
+        return {
             'w': self.w,
             'h': self.h,
             'flipped_x': self.flipped_x,
             'flipped_y': self.flipped_y
-        })
+        }
+
+    def get_dict(self):
+        return super().get_dict().update(self.get_properties())
 
     def set_size(self, w, h):
         self._w = w
@@ -221,6 +234,8 @@ class TokenAsset(StageAsset):
         kwargs['pixel_pos'] = False
 
         super().__init__(img, **kwargs)
+
+        self.end_resize()
 
     def finalise_dimensions(self):
         super().finalise_dimensions()
